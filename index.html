@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>大大大飞鸡哥 · 修仙闯关</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#0b1020; }
+  body { display:flex; align-items:center; justify-content:center;
+         font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
+  #wrap { position:relative; }
+  canvas { display:block; touch-action:manipulation; }
+  /* ---- 覆盖层 ---- */
+  .layer { position:absolute; inset:0; z-index:20; display:none; flex-direction:column;
+           align-items:center; text-align:center; padding:0 22px;
+           background:linear-gradient(180deg, rgba(8,12,26,.92), rgba(10,16,34,.97)); }
+  .layer.show { display:flex; }
+  .layer h1 { font-size:34px; letter-spacing:8px; color:#9fe1cb; font-weight:600;
+           text-shadow:0 0 24px rgba(159,225,203,.35); margin-bottom:6px; }
+  .layer .sub { font-size:12px; letter-spacing:3px; color:#7f8db0; margin-bottom:12px; }
+  .layer .story { font-size:15px; line-height:2.0; color:#d8e2f5; max-width:400px;
+               min-height:100px; white-space:pre-line; }
+  .layer button { padding:12px 42px; font-size:16px; letter-spacing:4px; border-radius:30px;
+        border:1px solid #9fe1cb; background:rgba(159,225,203,.10); color:#9fe1cb; cursor:pointer; }
+  .layer button.sub { border-color:#7f8db0; color:#aab6d0; background:transparent; font-size:13px; padding:9px 30px; }
+  .layer button:active { background:rgba(159,225,203,.28); }
+  .layer .btns { margin-top:22px; display:flex; flex-direction:column; gap:12px; }
+  .layer .rw { font-size:14px; color:#f5c46b; margin-top:8px; letter-spacing:1px; }
+  .layer .rw2 { font-size:13px; color:#c9a0f5; margin-top:5px; }
+  .tag { display:inline-block; margin:0 3px; padding:2px 10px; border:1px solid #f5c46b88;
+             border-radius:10px; font-size:12px; color:#f5c46b; }
+  /* ---- 左下角原创标签 ---- */
+  #credit { position:absolute; left:10px; bottom:8px; z-index:40; font-size:11px;
+        letter-spacing:1px; color:rgba(255,255,255,.45); text-shadow:0 1px 2px rgba(0,0,0,.5);
+        pointer-events:none; font-weight:400; }
+  #credit b { color:rgba(159,225,203,.65); font-weight:500; }
+  /* ---- 炼器主界面 ---- */
+  #forge { overflow-y:auto; justify-content:flex-start; padding-top:26px;
+           background: linear-gradient(180deg, rgba(8,12,26,.72), rgba(10,16,34,.88)),
+                       url('assets/forge_bg.jpg') center/cover no-repeat; }
+  #forge .head { width:100%; max-width:420px; }
+  #forge .statrow { display:flex; justify-content:space-between; align-items:baseline;
+          color:#d8e2f5; font-size:14px; margin:3px 0; }
+  #forge .statrow b { font-size:20px; color:#f5c46b; }
+  #forge .statrow .atk { color:#9fe1cb; font-size:20px; font-weight:600; }
+  #gearList { width:100%; max-width:420px; margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+  .gear { display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.04);
+          border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 14px; }
+  .gear .ic { width:34px; height:34px; border-radius:8px; display:flex; align-items:center;
+          justify-content:center; font-size:18px; flex:0 0 34px; }
+  .gear .info { flex:1; text-align:left; }
+  .gear .info .n { color:#e6edf9; font-size:14px; }
+  .gear .info .s { color:#7f8db0; font-size:11px; margin-top:2px; }
+  .gear .lv { color:#f5c46b; font-size:13px; font-weight:600; width:52px; text-align:center; }
+  .gear .up { padding:7px 14px; border-radius:20px; border:1px solid #f5c46b;
+          background:rgba(245,196,107,.12); color:#f5c46b; font-size:13px; cursor:pointer; }
+  .gear .up:active { background:rgba(245,196,107,.3); }
+  .gear .up.dis { border-color:#555; color:#666; background:transparent; }
+  #forge .go { margin-top:16px; margin-bottom:30px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+  <div id="credit"><b>余飞凡</b> 原创</div>
+
+  <!-- 剧情 / 结算 / 终章 -->
+  <div class="layer" id="ui">
+    <h1 id="uiTitle">大大大飞鸡哥</h1>
+    <div class="sub" id="uiSub"></div>
+    <div class="story" id="uiText"></div>
+    <div class="rw" id="uiRw"></div>
+    <div class="rw2" id="uiRw2"></div>
+    <div class="btns" id="uiBtns"></div>
+    <div class="sub" id="uiTip" style="margin-top:16px"></div>
+  </div>
+
+  <!-- 炼器主界面 -->
+  <div class="layer" id="forge">
+    <div class="head">
+      <h1 id="gameName" style="font-size:28px; letter-spacing:3px;">大大大飞鸡哥</h1>
+      <div class="sub" style="color:#7f8db0; letter-spacing:6px;">洞府 · 炼器</div>
+      <div class="sub" id="fRealm">炼气期</div>
+      <div class="statrow"><span>战力（攻击力）</span><span class="atk" id="fAtk">8</span></div>
+      <div class="statrow"><span>灵石</span><b id="fStone">0</b></div>
+      <div class="statrow"><span>闯关进度</span><span id="fProg" style="color:#aab6d0">第 1 关 · 狼妖袭村</span></div>
+    </div>
+    <div id="gearList"></div>
+    <button class="go" id="fGo">开始闯关</button>
+  </div>
+</div>
+
+<script>
+(function(){
+/* ================= 基础 ================= */
+const W = 540, H = 960;
+const cvs = document.getElementById('game');
+const ctx = cvs.getContext('2d');
+cvs.width = W; cvs.height = H;
+function fit(){
+  const r = Math.min(window.innerWidth / W, window.innerHeight / H);
+  cvs.style.width = (W*r)+'px'; cvs.style.height = (H*r)+'px';
+  document.getElementById('wrap').style.width = (W*r)+'px';
+  document.getElementById('wrap').style.height = (H*r)+'px';
+}
+window.addEventListener('resize', fit); fit();
+
+/* ================= 素材 ================= */
+const ASSET_DIR = 'assets/';
+const imgs = {};
+function loadImg(n){
+  const im = new Image();
+  im.onload = ()=>{ imgs[n]=im; };
+  im.onerror = ()=>{ imgs[n]=null; };
+  im.src = ASSET_DIR + n + '.png';
+}
+['wolf','bat','stone','sword','bg',
+ 'player_1','player_2','player_3','player_4','player_5',
+ 'boss_1','boss_2','boss_3','boss_4','boss_5'].forEach(loadImg);
+
+/* ================= 音效 ================= */
+let AC = null;
+function audio(){ if(!AC){ AC = new (window.AudioContext||window.webkitAudioContext)(); }
+  if(AC.state==='suspended') AC.resume(); }
+function tone(f,d,type,vol,slide){
+  if(!AC) return;
+  const t=AC.currentTime, o=AC.createOscillator(), g=AC.createGain();
+  o.type=type||'square'; o.frequency.setValueAtTime(f,t);
+  if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t+d);
+  g.gain.setValueAtTime(vol||0.08,t); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+  o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+d);
+}
+const sfx = {
+  hit(){ tone(300,.08,'square',.08,-150); },
+  crit(){ tone(200,.12,'sawtooth',.1,-100); },
+  sword(){ tone(1400,.15,'triangle',.08,-800); },
+  stone(){ tone(1300,.1,'sine',.07,500); },
+  forge(){ tone(500,.3,'triangle',.1,600); },
+  up(){ tone(400,.6,'sine',.12,1000); },
+  win(){ tone(660,.12,'sine',.1,300); setTimeout(()=>tone(880,.2,'sine',.1,300),120); },
+  fail(){ tone(220,.3,'sawtooth',.1,-80); },
+};
+
+/* ================= 数值表 ================= */
+// 五章 = 五境界（境界攻击为基础攻击，突破靠闯关）
+const REALMS = [
+  { name:'炼气期', atk:8,  color:'#85b7eb' },
+  { name:'筑基期', atk:16, color:'#97c459' },
+  { name:'金丹期', atk:30, color:'#f5c46b' },
+  { name:'元婴期', atk:55, color:'#c9a0f5' },
+  { name:'化神期', atk:95, color:'#ffffff' },
+];
+// 装备：6 部位，消耗灵石强化，加攻击力
+const GEARS = [
+  { key:'sword', name:'飞剑', ic:'🗡️', atk:4, cost:12 },
+  { key:'ring',  name:'戒指', ic:'💍', atk:3, cost:10 },
+  { key:'crown', name:'发冠', ic:'👑', atk:2, cost:8  },
+  { key:'robe',  name:'道袍', ic:'👘', atk:2, cost:8  },
+  { key:'pants', name:'裤',   ic:'👖', atk:1, cost:6  },
+  { key:'boots', name:'靴',   ic:'🥾', atk:1, cost:6  },
+];
+// 20 关：ch 章 / name / goal 击杀目标 / hp 怪物血量 / time 限时(秒) / boss
+const LEVELS = [
+  { ch:1, name:'狼妖袭村', goal:5,  hp:25,  time:60, mon:['wolf'] },
+  { ch:1, name:'狼群围攻', goal:8,  hp:33,  time:60, mon:['wolf'] },
+  { ch:1, name:'夜探狼穴', goal:10, hp:45,  time:60, mon:['wolf','bat'] },
+  { ch:1, name:'黑风狼王', goal:1,  hp:200, time:90, mon:['boss'], boss:'黑风狼王' },
+  { ch:2, name:'雾林蝠影', goal:6,  hp:70,  time:60, mon:['bat'] },
+  { ch:2, name:'群蝠乱舞', goal:9,  hp:95,  time:60, mon:['bat'] },
+  { ch:2, name:'雾林深处', goal:12, hp:125, time:60, mon:['bat','wolf'] },
+  { ch:2, name:'血翼蝠王', goal:1,  hp:520, time:90, mon:['boss'], boss:'血翼蝠王' },
+  { ch:3, name:'洞窟狼嚎', goal:7,  hp:190, time:60, mon:['wolf','bat'] },
+  { ch:3, name:'幽煞煞气', goal:10, hp:255, time:60, mon:['bat','wolf'] },
+  { ch:3, name:'洞窟深处', goal:13, hp:340, time:60, mon:['wolf','bat'] },
+  { ch:3, name:'幽煞魔将', goal:1,  hp:1400,time:90, mon:['boss'], boss:'幽煞魔将' },
+  { ch:4, name:'塔前守卫', goal:8,  hp:480, time:60, mon:['bat','wolf'] },
+  { ch:4, name:'塔中妖群', goal:11, hp:640, time:60, mon:['wolf','bat'] },
+  { ch:4, name:'塔顶风波', goal:14, hp:860, time:60, mon:['bat','wolf'] },
+  { ch:4, name:'赤炎塔主', goal:1,  hp:3600,time:90, mon:['boss'], boss:'赤炎塔主' },
+  { ch:5, name:'天门守卫', goal:9,  hp:1200,time:60, mon:['wolf','bat'] },
+  { ch:5, name:'魔军压境', goal:12, hp:1600,time:60, mon:['bat','wolf'] },
+  { ch:5, name:'破军之战', goal:15, hp:2100,time:60, mon:['wolf','bat'] },
+  { ch:5, name:'魔尊灭世', goal:1,  hp:9000,time:90, mon:['boss'], boss:'九天魔尊' },
+];
+const CH_TITLE = { 1:'第一章 · 青阳镇', 2:'第二章 · 迷雾林', 3:'第三章 · 幽冥洞窟',
+                   4:'第四章 · 锁妖塔', 5:'第五章 · 九天之巅' };
+const STORY = {
+  1: '青阳镇外，狼妖夜袭。\n师父将家传青霜剑交予少年林寻：\n「剑心通明，方可问仙。去吧，孩子。」\n——第一战，保卫青阳镇！',
+  2: '狼王临死前吐露：\n迷雾林深处藏有筑基丹。\n林寻只身入林，雾中蝠影重重……',
+  3: '蝠王败退时撕开地缝，\n露出幽冥洞窟的入口。\n洞中煞气冲天，却隐有金丹之气流转。',
+  4: '金丹已成！\n传闻锁妖塔封印着上古魔物，\n塔主赤炎窥伺人间已久。\n登塔九层，层层凶险。',
+  5: '元婴突破之际，天裂——\n魔尊灭世自九天而降。\n最后一战，为了人间。\n剑指苍穹！',
+};
+const BOSS_GEAR = { // Boss 首杀掉落法宝（加攻）
+  1:{ name:'青霜剑', atk:5 },
+  2:{ name:'风翼靴', atk:8 },
+  3:{ name:'幽煞鼎', atk:14 },
+  4:{ name:'赤炎冠', atk:22 },
+  5:{ name:'灭世戟', atk:35 },
+};
+
+/* ================= 存档 ================= */
+const SAVE_KEY = 'xxwj_forge_v1';
+function loadSave(){
+  try{ sv = JSON.parse(localStorage.getItem(SAVE_KEY)); }catch(e){ sv = null; }
+  if(!sv || typeof sv.lv !== 'number') sv = null;
+}
+function writeSave(){
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(
+    { lv:g.lv, stones:g.stones, gears:g.gears, bossGot:g.bossGot, seenStory:g.seenStory })); }catch(e){}
+}
+
+/* ================= 玩家属性 ================= */
+function realmIdx(){ return Math.min(4, Math.floor(g.lv/4)); }
+function gearAtk(){
+  let a = 0;
+  for(const def of GEARS) a += (g.gears[def.key]||0) * def.atk;
+  return a;
+}
+function pAtk(){
+  return REALMS[realmIdx()].atk + gearAtk() + bossAtk();
+}
+function bossAtk(){
+  let a = 0;
+  for(const c in g.bossGot) a += BOSS_GEAR[c].atk;
+  return a;
+}
+function gearCost(def){ return def.cost * ((g.gears[def.key]||0) + 1); }
+
+/* ================= 状态 ================= */
+let sv = null;
+let g = null;
+function freshState(){ return { lv:0, stones:0, gears:{}, bossGot:{}, seenStory:{} }; }
+function ensureG(){
+  if(!g){
+    if(sv){ g = Object.assign(freshState(), sv); }
+    else { g = freshState(); }
+  }
+}
+
+/* ================= UI 层 ================= */
+const ui = document.getElementById('ui');
+const uiTitle = document.getElementById('uiTitle');
+const uiSub = document.getElementById('uiSub');
+const uiText = document.getElementById('uiText');
+const uiRw = document.getElementById('uiRw');
+const uiRw2 = document.getElementById('uiRw2');
+const uiBtns = document.getElementById('uiBtns');
+const uiTip = document.getElementById('uiTip');
+const forgeEl = document.getElementById('forge');
+function showUI(title, sub, text, btns, tip){
+  uiTitle.textContent = title;
+  uiSub.innerHTML = sub||''; uiText.textContent = text||'';
+  uiRw.innerHTML = ''; uiRw2.innerHTML = '';
+  uiBtns.innerHTML = ''; uiTip.textContent = tip||'';
+  (btns||[]).forEach(b=>{
+    const el = document.createElement('button');
+    el.textContent = b.t; if(b.cls) el.className = b.cls;
+    el.addEventListener('click', ()=>{ try{audio();}catch(e){} b.fn(); });
+    uiBtns.appendChild(el);
+  });
+  forgeEl.classList.remove('show');
+  ui.classList.add('show');
+}
+function hideUI(){ ui.classList.remove('show'); }
+function showForge(){
+  ui.classList.remove('show');
+  forgeEl.classList.add('show');
+  renderForge();
+}
+function renderForge(){
+  const r = REALMS[realmIdx()];
+  document.getElementById('fRealm').textContent = r.name;
+  document.getElementById('fAtk').textContent = pAtk();
+  document.getElementById('fStone').textContent = g.stones;
+  const lvData = LEVELS[g.lv];
+  document.getElementById('fProg').textContent =
+    (g.lv >= LEVELS.length ? '已通关全部章节' : `第 ${g.lv+1} 关 · ${lvData.name}`);
+  const list = document.getElementById('gearList');
+  list.innerHTML = '';
+  for(const def of GEARS){
+    const lv = g.gears[def.key]||0;
+    const cost = gearCost(def);
+    const afford = g.stones >= cost;
+    const row = document.createElement('div');
+    row.className = 'gear';
+    row.innerHTML = `
+      <div class="ic" style="background:${r.color}22">${def.ic}</div>
+      <div class="info">
+        <div class="n">${def.name}</div>
+        <div class="s">攻击 +${def.atk}/级 · 下一级 +${def.atk}</div>
+      </div>
+      <div class="lv">Lv.${lv}</div>`;
+    const btn = document.createElement('div');
+    btn.className = 'up' + (afford ? '' : ' dis');
+    btn.textContent = afford ? `强化 ${cost}灵` : '灵石不足';
+    if(afford) btn.addEventListener('click', ()=>{ doForge(def.key); });
+    row.appendChild(btn);
+    list.appendChild(row);
+  }
+  // 法宝（Boss 掉落）
+  if(Object.keys(g.bossGot).length){
+    const fb = document.createElement('div');
+    fb.style.cssText = 'margin-top:4px;color:#c9a0f5;font-size:12px;letter-spacing:1px';
+    fb.textContent = '法宝：' + Object.keys(g.bossGot).map(c=>BOSS_GEAR[c].name).join(' · ');
+    list.appendChild(fb);
+  }
+}
+function doForge(key){
+  const def = GEARS.find(d=>d.key===key);
+  const cost = gearCost(def);
+  if(g.stones < cost){ return; }
+  g.stones -= cost;
+  g.gears[key] = (g.gears[key]||0) + 1;
+  sfx.forge(); writeSave();
+  renderForge();
+}
+
+/* ================= 剧情 ================= */
+function startLevel(){
+  ensureG();
+  const lvData = LEVELS[g.lv];
+  if(!lvData){ return; }
+  const ch = lvData.ch;
+  const go = ()=>{ hideUI(); forgeEl.classList.remove('show'); beginBattle(lvData); };
+  if(!g.seenStory[ch]){
+    g.seenStory[ch] = true; writeSave();
+    showUI(CH_TITLE[ch], REALMS[ch-1].name, STORY[ch],
+      [ {t:'出 剑', fn:go} ], '章节剧情');
+  } else go();
+}
+
+/* ================= 战斗状态 ================= */
+let L = null;
+function beginBattle(lvData){
+  const isBoss = !!lvData.boss;
+  L = {
+    lvData, isBoss, ch: lvData.ch,
+    goal: lvData.goal, kills: 0,
+    etype: lvData.mon[0],
+    ehp: lvData.hp, emax: lvData.hp,
+    eFlash:0, eShake:0,
+    hitstop:0, shake:0,
+    time: lvData.time, timeLeft: lvData.time,
+    pAtk:0, swing:[],
+    parts:[], floats:[], drops:[], swords:[], t:0,
+    swordCd: 0,
+    running: true,
+  };
+  spawn();
+}
+function spawn(){
+  const pool = L.lvData.mon;
+  L.etype = pool[Math.floor(Math.random()*pool.length)];
+  L.ehp = L.emax = L.lvData.hp;
+  L.eFlash = 0; L.eShake = 0;
+}
+
+/* ================= 战斗逻辑 ================= */
+function attack(){
+  if(!L || !L.running) return;
+  let dmg = pAtk();
+  const crit = Math.random() < 0.15;
+  if(crit) dmg = Math.round(dmg*2);
+  L.ehp -= dmg; L.eFlash = 0.12; L.eShake = 6; L.hitstop = 0.03; L.shake = Math.max(L.shake,3);
+  L.pAtk = 0.18;
+  L.swing.push({ a:0, r:110, life:.22 });
+  (crit?sfx.crit:sfx.hit)();
+  L.floats.push({ x:W/2+(Math.random()-.5)*60, y:380, str:'-'+dmg, color:crit?'#ffd36b':'#fff', life:.8 });
+  for(let i=0;i<8;i++) spark(W/2+(Math.random()-.5)*80, 400+(Math.random()-.5)*60, crit?'#ffd36b':'#ff9d9d', 4);
+  if(L.ehp <= 0) killMonster();
+}
+function killMonster(){
+  L.kills++;
+  const n = L.isBoss ? 14 : (Math.random()<.3 ? 3 : 2);
+  for(let i=0;i<n;i++)
+    L.drops.push({ x:W/2+(Math.random()-.5)*110, y:400+(Math.random()-.5)*60,
+      vx:(Math.random()-.5)*3, vy:-3-Math.random()*3, t:0, v:0, done:false });
+  const rc = REALMS[L.ch-1].color;
+  for(let i=0;i<24;i++) spark(W/2, 420, rc, 6);
+  if(L.kills >= L.goal){ winLevel(); return; }
+  spawn();
+}
+function castSword(){
+  if(!L || !L.running) return;
+  if(L.swordCd > 0) return;
+  L.swordCd = 5;
+  sfx.sword();
+  L.swords.push({ x:W/2-120, y:620, tx:W/2, ty:430, life:.35,
+    dmg: Math.round(pAtk()*5) });
+}
+function spark(x,y,color,n){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*6.28, s = 1+Math.random()*5;
+    L.parts.push({ x,y, vx:Math.cos(a)*s, vy:Math.sin(a)*s-1,
+      life:.4+Math.random()*.4, color, size:2+Math.random()*3 });
+  }
+}
+
+/* ---- 通关 / 卡关 ---- */
+function winLevel(){
+  L.running = false;
+  const lvData = L.lvData, ch = lvData.ch;
+  let rwStones = L.isBoss ? 40 : 8 + ch*2;
+  g.stones += rwStones;
+  let rwGear = null, broke = false;
+  if(L.isBoss){
+    if(!g.bossGot[ch]){ g.bossGot[ch] = true; rwGear = BOSS_GEAR[ch]; }
+    if(g.lv < LEVELS.length-1) broke = realmIdx() < Math.min(4, Math.floor((g.lv+1)/4));
+  }
+  const wasLast = g.lv >= LEVELS.length-1;
+  g.lv = Math.min(LEVELS.length, g.lv+1);
+  writeSave();
+  sfx.win();
+  if(wasLast && L.isBoss){ ending(); return; }
+  const next = LEVELS[g.lv];
+  showUI('关 卡 通 过', next ? `第 ${g.lv+1} 关 · ${next.name}` : '已通关全部章节',
+    L.isBoss ? `${lvData.boss} 已被斩落！` : `目标达成 · 击杀 ${L.goal}`,
+    [ {t:'返回洞府', fn:showForge} ]);
+  uiRw.innerHTML = `<span class="tag">灵石 +${rwStones}</span>`;
+  if(rwGear) uiRw2.innerHTML = `获得法宝 · ${rwGear.name}（攻 +${rwGear.atk}）` +
+    (broke ? `　✦ 突破 · ${REALMS[realmIdx()].name} ✦` : '');
+}
+function failLevel(){
+  L.running = false;
+  sfx.fail();
+  showUI('战 力 不 足', `第 ${g.lv+1} 关 · ${L.lvData.name}`,
+    '妖兽气血深厚，一时难以斩杀。\n回到洞府强化装备，再来挑战吧！',
+    [ {t:'回洞府强化装备', fn:showForge},
+      {t:'再战一次', cls:'sub', fn:startLevel} ]);
+}
+function ending(){
+  writeSave();
+  showUI('渡 劫 飞 升', '终章 · 剑心通明',
+    '魔尊陨落，天地清明。\n林寻持剑立于九天之巅——\n此生问道，剑心通明。\n\n（第一卷 · 完）\n后续章节，敬请更新。',
+    [ {t:'重回洞府', fn:showForge} ]);
+}
+
+/* ================= 输入 ================= */
+cvs.addEventListener('pointerdown', e=>{
+  e.preventDefault();
+  audio();
+  if(ui.classList.contains('show') || forgeEl.classList.contains('show')) return;
+  if(!L || !L.running) return;
+  const rect = cvs.getBoundingClientRect();
+  const x = (e.clientX-rect.left)*(W/rect.width);
+  const y = (e.clientY-rect.top)*(H/rect.height);
+  // 剑气按钮
+  if(x > W-118 && x < W-22 && y > H-300 && y < H-204){ castSword(); return; }
+  // 撤退按钮
+  if(x > 20 && x < 90 && y > 20 && y < 60){ L.running=false; showForge(); return; }
+  attack();
+});
+
+/* ================= 更新 ================= */
+function update(dt){
+  if(!L) return;
+  if(!L.running){ decayFx(dt); return; }
+  L.t += dt;
+  if(L.hitstop > 0){ L.hitstop -= dt; return; }
+  decayFx(dt);
+
+  // 限时
+  L.timeLeft -= dt;
+  if(L.timeLeft <= 0){ L.timeLeft = 0; failLevel(); return; }
+  if(L.swordCd > 0) L.swordCd -= dt;
+
+  // 飞剑
+  for(const s of L.swords){
+    s.life -= dt;
+    s.x += (s.tx-s.x)*.25; s.y += (s.ty-s.y)*.25;
+    if(s.life <= 0){
+      L.ehp -= s.dmg; L.eFlash=.15; L.eShake=10; L.hitstop=.05; L.shake=Math.max(L.shake,6);
+      sfx.crit();
+      L.floats.push({ x:W/2, y:380, str:'-'+s.dmg, color:'#9fe1cb', life:.9 });
+      for(let i=0;i<20;i++) spark(W/2,420,'#9fe1cb',6);
+      if(L.ehp <= 0 && L.running) killMonster();
+    }
+  }
+  L.swords = L.swords.filter(s=>s.life>0);
+
+  // 灵石掉落
+  for(const d of L.drops){
+    d.t += dt; d.v += .25; d.y += d.v; d.x += d.vx; d.vx *= .97;
+    const dx = W/2-d.x, dy = H-95-d.y, dist = Math.hypot(dx,dy);
+    if(dist < 220){ d.x += dx*.1; d.y += dy*.1; }
+    if(dist < 40){
+      d.done = true; g.stones++; sfx.stone();
+      spark(d.x, d.y, '#f5c46b', 6);
+    }
+  }
+  L.drops = L.drops.filter(d=>!d.done);
+}
+function decayFx(dt){
+  if(!L) return;
+  if(L.shake > 0) L.shake = Math.max(0, L.shake-dt*30);
+  if(L.eFlash > 0) L.eFlash -= dt;
+  if(L.eShake > 0) L.eShake -= dt;
+  if(L.pAtk > 0) L.pAtk = Math.max(0, L.pAtk-dt);
+  for(const s of L.swing){ s.a += dt*18; s.life -= dt; }
+  L.swing = L.swing.filter(s=>s.life>0);
+  for(const p of L.parts){ p.x+=p.vx; p.y+=p.vy; p.vy+=.1; p.life-=dt; }
+  L.parts = L.parts.filter(p=>p.life>0);
+  for(const f of L.floats){ f.life-=dt; f.y-=1.2; }
+  L.floats = L.floats.filter(f=>f.life>0);
+  for(const d of L.drops){ if(!L.running){ d.t+=dt; d.v+=.25; d.y+=d.v; } }
+}
+
+/* ================= 渲染 ================= */
+function drawImg(n,x,y,w,h){
+  const im = imgs[n];
+  if(im){ ctx.drawImage(im, x-w/2, y-h/2, w, h); return true; }
+  return false;
+}
+function fallback(n,x,y,w,h){
+  ctx.save(); ctx.translate(x,y);
+  if(n.startsWith('player')){
+    ctx.fillStyle='#9fe1cb'; ctx.beginPath(); ctx.arc(0,-h*.1,w*.32,0,6.28); ctx.fill();
+    ctx.fillStyle='#dbe6ff'; ctx.fillRect(-w*.04,-h*.28,w*.08,h*.5);
+  } else if(n.startsWith('wolf')||n.startsWith('bat')||n.startsWith('boss')){
+    const kind = n.startsWith('boss') ? 'boss' : (n.startsWith('wolf')?'wolf':'bat');
+    ctx.fillStyle = kind==='wolf'?'#b07bff': kind==='bat'?'#ff9d7b':'#e24b4a';
+    ctx.beginPath(); ctx.arc(0,0,w*.4,0,6.28); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.beginPath();
+    ctx.arc(-w*.12,-h*.05,w*.1,0,6.28); ctx.arc(w*.12,-h*.05,w*.1,0,6.28); ctx.fill();
+  } else if(n==='stone'){
+    ctx.fillStyle='#f5c46b'; ctx.beginPath();
+    ctx.moveTo(0,-h/2); ctx.lineTo(w/2,0); ctx.lineTo(0,h/2); ctx.lineTo(-w/2,0);
+    ctx.closePath(); ctx.fill();
+  } else if(n==='sword'){
+    ctx.fillStyle='#9fe1cb'; ctx.fillRect(-w*.06,-h/2,w*.12,h);
+  }
+  ctx.restore();
+}
+function renderBattle(){
+  if(!drawImg('bg', W/2, H/2, W, H)){
+    const gr = ctx.createLinearGradient(0,0,0,H);
+    gr.addColorStop(0,'#0a0f22'); gr.addColorStop(.6,'#151d36'); gr.addColorStop(1,'#1c2540');
+    ctx.fillStyle = gr; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#12182e'; ctx.beginPath();
+    ctx.moveTo(0,H); ctx.lineTo(0,H-260); ctx.lineTo(140,H-380); ctx.lineTo(260,H-240);
+    ctx.lineTo(400,H-330); ctx.lineTo(540,H-220); ctx.lineTo(540,H); ctx.closePath(); ctx.fill();
+  }
+  ctx.save();
+  if(L.shake > 0) ctx.translate((Math.random()-.5)*L.shake, (Math.random()-.5)*L.shake);
+
+  // 掉落灵石（旋转 + 呼吸）
+  for(const d of L.drops){
+    ctx.save(); ctx.translate(d.x, d.y);
+    ctx.rotate(d.t * 4);
+    const sc = 1 + Math.sin(d.t*6)*0.12;
+    ctx.scale(sc, sc);
+    if(!drawImg('stone', 0, 0, 30, 30)) fallback('stone',0,0,30,30);
+    ctx.restore();
+  }
+
+  // 怪物（待机浮动 + 小怪小只 / Boss 威猛，每章 Boss 独立立绘）
+  const ex = W/2, ey = 430 + Math.sin(L.t * (L.isBoss ? 1.8 : 3.2)) * (L.isBoss ? 5 : 9);
+  const es = L.eShake>0 ? (Math.random()-.5)*L.eShake : 0;
+  const msize = L.isBoss ? 295 : 155;
+  const mimg = L.isBoss ? ('boss_' + L.ch) : L.etype;
+  if(L.isBoss){
+    const aura = ctx.createRadialGradient(ex, ey, 40, ex, ey, 215);
+    aura.addColorStop(0, 'rgba(150,10,10,.4)');
+    aura.addColorStop(1, 'rgba(150,10,10,0)');
+    ctx.fillStyle = aura;
+    ctx.beginPath(); ctx.arc(ex, ey, 215, 0, 6.28); ctx.fill();
+  }
+  ctx.save(); ctx.translate(ex+es, ey);
+  if(L.eFlash > 0) ctx.globalAlpha = .6 + Math.random()*.4;
+  if(!drawImg(mimg, 0, 0, msize, msize)) fallback(mimg,0,0,msize,msize);
+  ctx.restore();
+
+  // 怪物血条
+  if(L.isBoss){
+    const bw = 330;
+    ctx.fillStyle='#ffd36b'; ctx.font='bold 17px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('⬥ BOSS · '+L.lvData.boss+' ⬥', W/2, 100);
+    ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(W/2-bw/2, 110, bw, 20);
+    ctx.strokeStyle='#f5c46b'; ctx.lineWidth=2; ctx.strokeRect(W/2-bw/2, 110, bw, 20);
+    ctx.fillStyle='#c93b3b'; ctx.fillRect(W/2-bw/2+2, 112, (bw-4)*Math.max(0,L.ehp/L.emax), 16);
+    ctx.fillStyle='#fff'; ctx.font='11px sans-serif';
+    ctx.fillText(Math.max(0,Math.ceil(L.ehp))+' / '+L.emax, W/2, 125);
+  } else {
+    const bw = 240;
+    ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(W/2-bw/2, 118, bw, 18);
+    ctx.fillStyle='#e24b4a';
+    ctx.fillRect(W/2-bw/2+2, 120, (bw-4)*Math.max(0,L.ehp/L.emax), 14);
+    ctx.fillStyle='#fff'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(Math.max(0,Math.ceil(L.ehp))+' / '+L.emax, W/2, 132);
+  }
+
+  // 飞剑（旋转飞行）
+  for(const s of L.swords){
+    ctx.save(); ctx.translate(s.x, s.y);
+    ctx.rotate(-0.7 + Math.sin(L.t*26)*0.12);
+    if(!drawImg('sword', 0, 0, 60, 60)) fallback('sword',0,0,60,60);
+    ctx.restore();
+  }
+
+  // 主角（境界换装 + 呼吸 + 攻击前倾 + 挥剑弧光）
+  const px = W/2, py = H-255;
+  const bob = Math.sin(L.t*2.5)*4;
+  let lungeY = 0, rot = 0, sc = 1;
+  if(L.pAtk > 0){
+    const e = Math.sin((L.pAtk/0.18)*Math.PI);
+    lungeY = -18*e; sc = 1 + 0.06*e; rot = -0.05*e;
+  }
+  for(const s of L.swing){
+    const prog = 1 - s.life/0.22;
+    const al = Math.max(0, s.life/0.22);
+    ctx.save();
+    ctx.globalAlpha = al; ctx.strokeStyle = '#9fe1cb'; ctx.lineWidth = 9; ctx.lineCap='round';
+    ctx.beginPath(); ctx.arc(px, py-30, s.r, -2.2, -2.2 + 1.6*prog); ctx.stroke();
+    ctx.globalAlpha = al*0.9; ctx.strokeStyle = '#eaffff'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(px, py-30, s.r*1.2, -2.2, -2.2 + 1.6*prog); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.save();
+  ctx.translate(px, py + bob + lungeY);
+  ctx.rotate(rot); ctx.scale(sc, sc);
+  const pimg = 'player_' + (realmIdx()+1);   // 境界换装：炼气→化神 5 套
+  if(!drawImg(pimg, 0, 0, 170, 230)) fallback('player',0,0,170,230);
+  ctx.restore();
+
+  // 粒子
+  for(const p of L.parts){
+    ctx.globalAlpha = Math.max(0, p.life*2);
+    ctx.fillStyle = p.color; ctx.fillRect(p.x-p.size/2, p.y-p.size/2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+
+  // 飘字
+  ctx.textAlign='center'; ctx.font='bold 20px sans-serif';
+  for(const f of L.floats){
+    ctx.globalAlpha = Math.max(0, Math.min(1, f.life));
+    ctx.fillStyle = f.color; ctx.fillText(f.str, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  drawHUD();
+}
+function drawHUD(){
+  const r = REALMS[L.ch-1];
+  // 倒计时（紧张时变红）
+  const urgent = L.timeLeft < 15;
+  ctx.textAlign='center';
+  ctx.fillStyle = urgent ? '#ff6b6b' : '#fff';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillText('⏱ ' + Math.ceil(L.timeLeft) + 's', W/2, 66);
+  // 目标进度
+  ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(20, H-38, 160, 16);
+  ctx.fillStyle='#9fe1cb'; ctx.fillRect(22, H-36, 156*Math.min(1,L.kills/L.goal), 12);
+  ctx.fillStyle='#cfe8ff'; ctx.font='10px sans-serif'; ctx.textAlign='left';
+  ctx.fillText('目标 '+L.kills+'/'+L.goal, 22, H-26);
+
+  // 剑气按钮（冷却）
+  const b1x = W-70, b1y = H-252;
+  ctx.fillStyle='rgba(159,225,203,.15)'; ctx.strokeStyle='rgba(159,225,203,.5)';
+  ctx.beginPath(); ctx.arc(b1x, b1y, 42, 0, 6.28); ctx.fill(); ctx.stroke();
+  if(L.swordCd > 0){
+    ctx.fillStyle='rgba(0,0,0,.5)';
+    ctx.beginPath(); ctx.moveTo(b1x,b1y); ctx.arc(b1x,b1y,42,-Math.PI/2,-Math.PI/2+(1-L.swordCd/5)*Math.PI*2); ctx.closePath(); ctx.fill();
+  }
+  if(!drawImg('sword', b1x, b1y, 40, 40)) fallback('sword',b1x,b1y,40,40);
+  ctx.fillStyle = L.swordCd<=0 ? '#9fe1cb' : '#666'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(L.swordCd<=0 ? '剑气' : Math.ceil(L.swordCd)+'s', b1x, b1y+58);
+
+  // 撤退按钮
+  ctx.fillStyle='rgba(255,255,255,.08)'; ctx.strokeStyle='rgba(255,255,255,.25)';
+  ctx.fillRect(20, 20, 70, 40); ctx.strokeRect(20, 20, 70, 40);
+  ctx.fillStyle='#aab6d0'; ctx.font='13px sans-serif';
+  ctx.fillText('← 洞府', 55, 45);
+
+  // 境界 + 战力
+  ctx.textAlign='left';
+  ctx.fillStyle=r.color; ctx.font='bold 19px sans-serif';
+  ctx.fillText(r.name+' · '+L.lvData.name, 100, 40);
+  ctx.fillStyle='rgba(255,255,255,.15)'; ctx.fillRect(20, 48, 170, 9);
+  ctx.fillStyle=r.color;
+  ctx.fillRect(20, 48, 170*((g.lv%4 + (L.isBoss?1:Math.min(L.kills/L.goal,1)))/4), 9);
+  // 灵石 / 战力
+  ctx.textAlign='right';
+  ctx.fillStyle='#f5c46b'; ctx.font='bold 18px sans-serif';
+  ctx.fillText('灵石 '+g.stones, W-20, 40);
+  ctx.fillStyle='#aab6d0'; ctx.font='12px sans-serif';
+  ctx.fillText('战力 '+pAtk(), W-20, 60);
+}
+
+/* ================= 主循环 ================= */
+let last = performance.now();
+function loop(now){
+  const dt = Math.min(.05, (now-last)/1000); last = now;
+  if(L && !ui.classList.contains('show') && !forgeEl.classList.contains('show')){
+    update(dt); renderBattle();
+  } else if(L && forgeEl.classList.contains('show')) {
+    // 洞府背景（保留最后一帧）
+  } else if(L && ui.classList.contains('show')) {
+    // 结算层保留画面
+  } else {
+    // 首次/洞府底图
+    const gr = ctx.createLinearGradient(0,0,0,H);
+    gr.addColorStop(0,'#0a0f22'); gr.addColorStop(1,'#1c2540');
+    ctx.fillStyle = gr; ctx.fillRect(0,0,W,H);
+    if(!drawImg('bg', W/2, H/2, W, H)) {}
+    if(imgs['player_1']) ctx.drawImage(imgs['player_1'], W/2-85, H-450, 170, 230);
+  }
+  requestAnimationFrame(loop);
+}
+loadSave();
+ensureG();
+document.getElementById('fGo').addEventListener('click', ()=>{ try{audio();}catch(e){} startLevel(); });
+showForge();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
