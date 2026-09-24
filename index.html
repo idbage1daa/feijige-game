@@ -3863,7 +3863,7 @@ function tryDropGear(force) {
   const g = gainGear(addGear(dropGear(gearProgressIdx(), false)));
   const T = gearTierOf(g);
   toast('拾得 ' + T.n + '　' + g.nm + '（' + gearSlotOf(g.slot).n + '）　强度 ' + gearScore(g), T.c);
-  SFX.gear();
+  SFX.gear(g.ti);        // 编钟响数 = 品阶 + 1（品阶是「听得出来」的，见 06_audio.js）
   return g;
 }
 function onWaveClear() {
@@ -4079,7 +4079,7 @@ function killMob(m) {
     const g = gainGear(addGear(dropGear(gearProgressIdx(), true)));
     const T = gearTierOf(g);
     toast('魔将遗宝 ' + T.n + '　' + g.nm + '　强度 ' + gearScore(g), T.c);
-    SFX.gear();
+    SFX.gear(g.ti);
   }
   if (!save.codex[m.key]) { save.codex[m.key] = 1; }
   /* 疾风步：每次击杀刷新 2 秒高速期 */
@@ -4132,9 +4132,11 @@ function tryLevelUp() {
   }
   if (up) {
     G.noUpT = 0; G.orbBoost = 0;                        // 已精进 → 解除防卡保底
-    SFX.levelup();
     burst(hero.x, hero.y - 40, 26, '#8fe3c8', 260, 6);
     popText(hero.x, hero.y - 96, numCn(G.level) + ' 重', '#8fe3c8', 2);
+    /* ★ 这里**不再**单独播 SFX.levelup()：紧跟着的 openLevelUp() 会播一模一样的一声
+       （磬 + 低吟 pad，提示词 14.4 把这一声系在「三选一弹出」这个事件上）。
+       两处都播 = 同一个 0.6 秒的垫音叠成 1.2 秒的糊音，反而把「精进」这件事含糊掉了。 */
     if (!G.paused) openLevelUp();
   }
 }
@@ -5951,6 +5953,7 @@ let master = null;        // 总音量
 let comp = null;          // 压缩器：多个音效叠加时防爆音
 let noiseBuf = null;      // 复用的白噪声缓冲
 let audioReady = false;
+let revIn = null;         // 混响总线的入口（master 的一路支线）
 const sfxLast = {};       // 高频音效节流表
 
 /* ---------------- 初始化 / 手势解锁 ---------------- */
@@ -5970,6 +5973,7 @@ function initAudio() {
     comp.release.value = 0.18;
     master.connect(comp);
     comp.connect(AC.destination);
+    buildReverb();
     /* 预生成 1 秒白噪声缓冲，反复复用（避免每次发声都新建大对象） */
     const len = Math.max(1, Math.floor(AC.sampleRate * 1.0));
     noiseBuf = AC.createBuffer(1, len, AC.sampleRate);
@@ -5977,6 +5981,41 @@ function initAudio() {
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     audioReady = true;
   } catch (e) { AC = null; audioReady = false; }
+}
+
+/* =========================================================================
+   山洞混响：总线上挂一层空间感
+   ---------------------------------------------------------------------------
+   提示词第 14.1 节第 4 条明令：「空间感必须有：干声一定像玩具。总线挂一层
+   山洞混响（无卷积文件时用 3 层 DelayNode 串接近似：60ms / 130ms / 260ms，
+   反馈 0.28，再挂低通 4000Hz），模拟洞天山谷的回荡。」
+
+   本作是单文件自包含、不许外链音频，所以拿不到脉冲响应文件 → 只能用延迟网络。
+   三层延迟串成一个环（60→130→260→回到 60），环路增益 0.28：
+   每绕一圈衰减 72%，绕 3 圈就只剩 2%，听感上是「山谷的回荡」而不是「弹簧混响」。
+
+   ★ 两个工程上的取舍，都写在这里免得以后被当成 bug：
+     1) 环路的反馈口接在 d3 回 d1 上（不是各层自环）—— 这样总延迟是 450ms 的
+        梳状结构，得到的是一串疏而远的回声；各层自环会得到密集的金属味，像弹簧。
+     2) 送进混响前先高通 280Hz：低音垫（BGM 的 110~220Hz 长音）本身已经很长，
+        再叠 4 秒的混响尾巴会糊成一团低频轰鸣，把整个混音拖浑。低音走干声。
+   ★ 湿声 0.20 是「能听出空间但不能听出效果器」的量，别调高。
+   ========================================================================= */
+function buildReverb() {
+  try {
+    revIn = AC.createGain(); revIn.gain.value = 1.0;
+    const hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 280;
+    const d1 = AC.createDelay(1.0); d1.delayTime.value = 0.060;
+    const d2 = AC.createDelay(1.0); d2.delayTime.value = 0.130;
+    const d3 = AC.createDelay(1.0); d3.delayTime.value = 0.260;
+    const fb = AC.createGain();  fb.gain.value = 0.28;
+    const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4000;
+    const wet = AC.createGain(); wet.gain.value = 0.20;
+    master.connect(hp);
+    hp.connect(d1); d1.connect(d2); d2.connect(d3);
+    d3.connect(fb); fb.connect(d1);                 // 环路：60→130→260→(×0.28)→60
+    d3.connect(lp); lp.connect(wet); wet.connect(comp);
+  } catch (e) { revIn = null; }
 }
 /* 必须在用户手势里调用（浏览器自动播放策略） */
 function resumeAudio() {
@@ -5997,8 +6036,11 @@ function sfxThrottle(key, ms) {
 }
 
 /* ---------------- 合成原语 ---------------- */
-/* 振荡器音：type 波形 · f0→f1 扫频 · dur 时长 · vol 峰值音量 · delay 相对延迟 */
-function tone(type, f0, f1, dur, vol, delay, detune) {
+/* 振荡器音：type 波形 · f0→f1 扫频 · dur 时长 · vol 峰值音量 · delay 相对延迟
+   · detune 音分失谐 · dest 输出总线（默认 master；BGM 交叉淡化时会传它自己的层）
+   ★ dest 这一维是「切场景 0.8 秒交叉淡化」的技术前提：
+     两首曲子必须各自挂在不同 gain 节点上，才能一升一降同时听得到。 */
+function tone(type, f0, f1, dur, vol, delay, detune, dest) {
   if (!audioReady || !sfxOn() || !AC) return null;
   try {
     const t = AC.currentTime + (delay || 0);
@@ -6013,13 +6055,13 @@ function tone(type, f0, f1, dur, vol, delay, detune) {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + atk);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(master);
+    o.connect(g); g.connect(dest || master);
     o.start(t); o.stop(t + dur + 0.02);
     return o;
   } catch (e) { return null; }
 }
-/* 噪声音：带通/低通/高通滤波，f0→f1 扫频 · q 品质因数 */
-function noise(f0, f1, dur, vol, q, type, delay) {
+/* 噪声音：带通/低通/高通滤波，f0→f1 扫频 · q 品质因数 · dest 输出总线 */
+function noise(f0, f1, dur, vol, q, type, delay, dest) {
   if (!audioReady || !sfxOn() || !AC) return null;
   try {
     const t = AC.currentTime + (delay || 0);
@@ -6035,7 +6077,7 @@ function noise(f0, f1, dur, vol, q, type, delay) {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + atk);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(g); g.connect(master);
+    s.connect(f); f.connect(g); g.connect(dest || master);
     s.start(t); s.stop(t + dur + 0.02);
     return s;
   } catch (e) { return null; }
@@ -6058,20 +6100,94 @@ function noise(f0, f1, dur, vol, q, type, delay) {
    与之相对，玩家**受击**故意保留低频闷响（不清脆）—— 那是「被打了」而不是「打中了」。
    ========================================================================= */
 const METAL_RATIOS = [1, 2.76, 5.40, 8.93];
+/* 分音上限：人耳在这里之上基本听不出音高，只剩「毛刺感」。
+   ★ 原来只挡了奈奎斯特（sampleRate×0.45 ≈ 22kHz），实测暴击的基音 2337Hz
+     乘 8.93 会跑到 **20.9kHz** —— 它不折返、不报错、也几乎听不见，
+     但在满屏几十发同时命中时，这些「听得见与听不见之间」的能量只会让整体变毛。
+     12kHz 之上对「金属感」的贡献趋近于零（人耳最敏感区在 2~5kHz），
+     而「清脆」的身份全部落在 1~8kHz —— 所以砍掉 12k 以上不损失任何辨识度。 */
+const METAL_HZ_MAX = 12000;
 /* f0 基频 · dur 时长 · vol 峰值 · delay 相对延迟
    第 i 个分音：音量按 1/(1+1.6i) 递减、时长按 (1-0.18i) 递减 → 高次先死 */
 function metal(f0, dur, vol, delay) {
   if (!audioReady || !sfxOn() || !AC) return;
   for (let i = 0; i < METAL_RATIOS.length; i++) {
     const r = METAL_RATIOS[i], f = f0 * r;
-    if (f > AC.sampleRate * 0.45) continue;              // 超过奈奎斯特会折返成怪音，直接丢
+    if (f > Math.min(AC.sampleRate * 0.45, METAL_HZ_MAX)) continue;
     tone('sine', f, f * 0.998, dur * (1 - i * 0.18), vol / (1 + i * 1.6), (delay || 0) + i * 0.002);
   }
 }
 
 /* =========================================================================
+   礼器三原语：编钟 / 战鼓 / 法阵低吟
+   ---------------------------------------------------------------------------
+   提示词速查表 2.2 给了「六大合成配方」，本文件原先只落地了其中三个
+   （古琴拨弦≈triangle+tone、剑鸣破空≈noise、玉磬≈metal）。剩下三个一直缺，
+   导致 14.4 的音效清单里有好几条根本没法按配方写（首领出场要战鼓、渡劫要磬、
+   大面板要低吟）—— 只能拿锯齿波凑，而锯齿波恰好是 14.1 第 3 条**明令禁止**的音色。
+   所以先把这三样补上，后面那些条目才有正确的料可下。
+   ========================================================================= */
+
+/* 编钟 / 玉磬：非谐波分音 + 2~4 秒长衰减（与 metal 同源、只差衰减长度）
+   metal 是「一击即碎」的打击音；bell 是「余音绕梁」的礼器音。
+   ★ 衰减拉到 2 秒以上时，分音比例必须略偏（×0.997），否则长音会听出「电流声」。 */
+function bell(f0, dur, vol, delay, dest) {
+  if (!audioReady || !sfxOn() || !AC) return;
+  for (let i = 0; i < 3; i++) {
+    const r = METAL_RATIOS[i], f = f0 * r;
+    if (f > Math.min(AC.sampleRate * 0.45, METAL_HZ_MAX)) continue;
+    tone('sine', f, f * 0.997, dur * (1 - i * 0.22), vol / (1 + i * 1.25), (delay || 0) + i * 0.004, 0, dest);
+  }
+}
+/* 战鼓 / 大鼓：正弦从 160Hz 指数滑到 45Hz（0.18s）+ 白噪瞬态走带通 200Hz。
+   ★ 下滑是战鼓的灵魂 —— 它的「重量」来自音高在 0.18 秒内掉了将近两个八度，
+     而不是来自把音量开大。只放大音量会变成「砰」的一声闷响，没有鼓的形。 */
+function drum(f0, dur, vol, delay, dest) {
+  if (!audioReady || !sfxOn() || !AC) return;
+  const d = dur || 0.18, v = vol || 0.10;
+  tone('sine', f0 || 160, 45, d, v, delay, 0, dest);
+  noise(200, 150, d * 0.55, v * 0.34, 0.9, 'bandpass', delay, dest);
+}
+/* 法阵低吟：110 / 165 / 220 三条正弦 + 慢起音 0.3 秒。
+   用途是「大面板开启 / 渡劫 / 突破」这类**需要仪式感**的时刻 ——
+   它和 pad 的区别是音程（纯五度叠置，不是任意音）与更慢的起音。 */
+function chant(dur, vol, delay) {
+  if (!audioReady || !sfxOn() || !AC) return;
+  const d = dur || 2.0, v = vol || 0.030;
+  for (let i = 0; i < 3; i++) {
+    const f = [110, 165, 220][i];
+    voice(f, d * (1 - i * 0.15), v / (1 + i * 0.8), (delay || 0) + i * 0.05, 0.30);
+  }
+}
+/* 慢起音正弦（chant / 竹笛气声共用）。
+   tone() 的起音被写死成 ≤12ms（那是打击音该有的快），礼器与吹管要的是 300ms 慢慢立起来。 */
+function voice(f0, dur, vol, delay, atk) {
+  if (!audioReady || !sfxOn() || !AC) return null;
+  try {
+    const t = AC.currentTime + (delay || 0);
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(Math.max(20, f0), t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + (atk || 0.30));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.03);
+    return o;
+  } catch (e) { return null; }
+}
+
+/* =========================================================================
    音效库：每个游戏事件一个 —— 命名与调用点一一对应，保证「发生即发声」
    ========================================================================= */
+
+/* 拾取经验符的上行音阶（C 宫五声：C D E G A，铺两个八度共 8 级）
+   选五声音阶而不是半音阶的理由见提示词 14.1：「禁止小二度、大七度、三全音
+   这些'西洋味'音程；不要出现半音阶上下行」。任意补齐的 8 级会带出半音，
+   8 级刚好是「宫→宫」两个八度，收在根音上，听感才是圆满的。 */
+const PENTA_UP = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51];
+const pickupChain = { i: 0, t: 0 };
+
 const SFX = {
   /* —— 出剑：剑锋破空的三层，而不是「一声金属响」 ——
      诊断（2026-09-24 用户反馈「现在这个配音不太合适」）：
@@ -6134,19 +6250,25 @@ const SFX = {
     noise(2200, 500, 0.420, 0.040, 0.9);
     noise(5200, 2600, 0.060, 0.026, 2.2, 'bandpass', 0.012);
   },
-  /* —— 板块点击（2026-09-24 新增）——
-     用户口径：「每个板块点击需要有一个提示音」。
-     做法：所有 data-act 的点击统一走这一个音，理由有三：
-       ① **一致性**：玩家点任何一块得到的反馈都一样，界面才有「整体感」；
-       ② **极短极轻**（30ms / 音量 0.024）：一局游戏要点几百下，稍响一点
-          就从「反馈」变成「噪音」，这是 UI 音最容易翻车的地方；
-       ③ 用 triangle + 一撮窄带噪声，落在 1.2kHz 中高频 —— 比低音「嗒」更
-          像金属机关，又比 5kHz 的高音不刺耳。
-     与专属音绝不重复播（如拾宝走 SFX.gear），见 04_ui.js 的点击入口。 */
+  /* —— 板块点击：极轻木鱼 ——
+     提示词 14.4：「UI 按钮 · 极轻木鱼 · 0.04s，音量约 0.05，绝不吵」。
+     ★ 换掉了原来的 triangle + 噪声（那更接近「电子嗒」而不是木鱼）。
+       木鱼的配方是「极短白噪脉冲 + 中频带通共振」（速查表 2.2），
+       所以关键在**高 Q 的带通**（Q=6）—— 低 Q 只会得到一声「嚓」，
+       高 Q 才有木头被敲的那个腔体共鸣。 */
   ui() {
     if (!sfxThrottle('ui', 45)) return;
-    tone('triangle', 1240, 1176, 0.028, 0.024);
-    noise(2600, 2000, 0.014, 0.012, 2.0);
+    noise(1500, 900, 0.040, 0.050, 6.0);        // 木鱼的腔体共振
+    tone('sine', 1180, 1050, 0.030, 0.018);     // 极轻的一层音高身份
+  },
+  /* —— 选择技能：古琴拨弦 0.15s 带混响尾（提示词 14.4） ——
+     与 ui() 的木鱼刻意分开：木鱼是「按到了」，拨弦是「我做了个决定」。
+     三选一是每局最需要仪式感的操作，用一个专属音把它从普通点击里拎出来。
+     三角波 + 极快起音 + 一条五度泛音，尾巴交给总线的山洞混响去收。 */
+  pickSkill() {
+    tone('triangle', 392.00, 392.00, 0.15, 0.070);
+    tone('sine',     588.00, 588.00, 0.15, 0.026);
+    tone('triangle', 783.99, 783.99, 0.20, 0.036, 0.055);
   },
   /* —— 玩家受击：故意做成「闷」的 ——
         低频 + 低通噪声，不清脆。玩家一挨打就听到清脆的金属声会误判成
@@ -6155,53 +6277,90 @@ const SFX = {
     noise(620, 200, 0.13, 0.105, 0.9, 'lowpass');
     tone('triangle', 148, 62, 0.19, 0.115);
   },
-  /* —— 拾取灵气符：极轻的「叮」，音高随机 —— */
+  /* —— 拾取经验符：短笛上滑，★ 音高随「连续拾取数」逐级升高 ——
+     提示词 14.4 原文：「0.08s，★ 音高随'连续拾取数'逐级升高，拾成一条音阶，极度上瘾」，
+     检查项 22 也点着这一条问。
+
+     旧实现是 `1140 + Math.random()*640` —— **随机音高**。
+     随机正好把这条需求做反了：随机音高听不出「我越拾越多」，
+     只有**固定的一条上行音阶**才能把连续拾取变成旋律、变成奖励。
+     做法：C 宫五声音阶往上铺两个八度，每拾一次走一级，封顶停在最高音；
+           停顿 0.8 秒（不再有符上门）就重置回根音 —— 于是「一波拾一串」听上去
+           就是一小段上行乐句，下一波从根音重来。这正是「极度上瘾」的机制来源。
+     ★ 节流 70ms 是刻意的：吸收 5 个符时听起来是一串 5 音快速上行琶音，
+       而不是叠成一声响 —— 那是「连拾」这件事在听觉上的形状。 */
   pickup() {
-    if (!sfxThrottle('pickup', 55)) return;
-    const f = 1140 + Math.random() * 640;
-    tone('sine', f, f * 1.02, 0.06, 0.030);
+    const now = (window.performance && performance.now) ? performance.now() : Date.now();
+    if (now - pickupChain.t > 800) pickupChain.i = 0;     // 停顿 → 重置回根音
+    pickupChain.t = now;
+    if (!sfxThrottle('pickup', 70)) return;
+    const f = PENTA_UP[Math.min(pickupChain.i, PENTA_UP.length - 1)];
+    pickupChain.i++;
+    tone('sine', f, f * 1.02, 0.08, 0.030);
   },
-  /* —— 修为精进：明亮上行四音（C-E-G-C） —— */
+  /* —— 修为精进（升级）：磬 + 低吟 pad ——
+     提示词 14.4：「升级三选一弹出 · 磬 + 低吟 pad · 0.6s，配合画面短暂停顿」。
+     ★ 原来是四音 triangle 上行（C-E-G-C），那是一句「旋律」而不是一记「礼器」。
+       磬给身份、低吟给垫底，两者叠起来才有「境界抬了一格」的仪式感。 */
   levelup() {
-    [1, 1.25, 1.5, 2].forEach((k, i) => {
-      const f = 523.25 * k;
-      tone('triangle', f, f, 0.24, 0.052, i * 0.055);
-    });
+    bell(1046.50, 1.60, 0.055);
+    chant(0.60, 0.030, 0.02);
   },
   /* —— 波次开始：低沉号角两音 —— */
   wave() {
     tone('triangle', 208, 208, 0.15, 0.038);
     tone('triangle', 312, 312, 0.21, 0.028, 0.07);
   },
-  /* —— 魔将降临：锯齿低频持续压迫 —— */
+  /* —— 魔将降临：战鼓 + 法阵低吟 ——
+     提示词 14.4：「首领出场 · 战鼓 + 低吟 · 与画面震动同步」。
+     ★ 旧版是两个锯齿波（78→54 / 117→81）—— 提示词 14.1 第 3 条**明令禁止**
+       「锯齿波独奏（太电）」，判定标准是「闭眼听像不像仙侠」。已换掉。
+     现在的两层各管一件事：战鼓给「体重」（下滑的 sine，105→48Hz，比配方更低
+     因为魔将体型更大），低吟给「仪式感」（110 与 165 两条慢起音正弦叠纯五度）。 */
   boss() {
-    tone('sawtooth', 78, 54, 0.85, 0.125);
-    tone('sawtooth', 117, 81, 0.70, 0.062, 0.02);
-    noise(300, 88, 0.80, 0.095, 0.5, 'lowpass');
+    drum(105, 0.34, 0.135);
+    drum(78, 0.46, 0.095, 0.16);
+    chant(2.10, 0.042, 0.02);
   },
-  /* —— 心魔降临：减五度不谐和音，制造不安 —— */
+  /* —— 心魔降临：减五度不谐和音，制造不安 ——
+     ★ 同样是锯齿波违规处（110/97 与 155.6/137）。减五度这个音程要保留
+       ——它是「不安」的来源，本来就是提示词 14.1 允许借用的偏音用法 ——
+       但载波换成**慢起音正弦**：不谐和感来自音程，不来自波形。
+       锯齿波的谐波堆会额外贡献一层「电流味」，那是廉价的不安。 */
   demon() {
-    tone('sawtooth', 110, 97, 1.00, 0.085);
-    tone('sawtooth', 155.6, 137, 1.00, 0.070);   // 减五度：D# vs A
-    noise(520, 150, 0.90, 0.065, 0.5, 'lowpass');
+    voice(110.0, 1.60, 0.085, 0, 0.42);
+    voice(155.6, 1.60, 0.070, 0.03, 0.42);      // 减五度：D# vs A
+    noise(520, 150, 1.40, 0.055, 0.5, 'lowpass');
   },
-  /* —— 击破心魔：辉煌上行 + 高频闪光 —— */
+  /* —— 渡劫成功（击破心魔）：磬 + 长混响，全篇最长的一个音 ——
+     提示词 14.4：「渡劫成功 · 磬 + 长混响 · 3s，全篇最长的一个音」。
+     ★ 旧版约 0.7 秒就收完了 —— 而这是全篇唯一被明确要求「最长」的音。
+       一个 0.7 秒的「成功音」听上去只是「打中了一下」，不像「跨过了一道劫」。
+       现在三记编钟（含低八度一记）铺足 3 秒，尾巴由总线山洞混响自然接续；
+       上方保留原来的五音上行，但压到 0.05 音量 —— 它只负责「往上走」的方向感，
+       主体交给磬的余音。 */
   breakthrough() {
+    bell(392.00, 3.20, 0.052);
+    bell(783.99, 3.00, 0.070);
+    bell(1046.50, 2.80, 0.052, 0.06);
     [392, 523.25, 659.25, 784, 1046.5].forEach((f, i) => {
-      tone('triangle', f, f, 0.40, 0.062, i * 0.07);
-      tone('sine', f * 2, f * 2, 0.30, 0.026, i * 0.07);
+      tone('triangle', f, f, 0.40, 0.042, i * 0.09);
     });
-    noise(900, 3000, 0.5, 0.045, 0.7, 'highpass', 0.10);
+    noise(900, 3000, 0.5, 0.038, 0.7, 'highpass', 0.10);
   },
   /* —— 护体/无敌 —— */
   shield() {
     tone('sine', 420, 900, 0.30, 0.048);
     noise(1200, 2400, 0.25, 0.036, 1.0, 'highpass');
   },
-  /* —— 天雷罚：劈落的爆裂（低频先到、噪声随后，像雷） —— */
+  /* —— 天雷罚：劈落的爆裂（低频先到、噪声随后，像雷） ——
+     ★ 第三处锯齿波（150→42）。雷声的「低频下坠」用正弦同样成立 ——
+       下滑才是雷的物理形态（爆炸后的次声下压），波形并不参与这件事。
+       改正弦 + 加一道更低的收尾，比原来的锯齿波更像远处的闷雷。 */
   thunder() {
-    tone('sawtooth', 150, 42, 0.30, 0.085);
-    noise(4200, 300, 0.34, 0.110, 0.7, 'lowpass');
+    tone('sine', 150, 42, 0.32, 0.090);
+    tone('sine', 62, 30, 0.40, 0.055, 0.02);
+    noise(4200, 300, 0.34, 0.100, 0.7, 'lowpass');
   },
   /* —— 万剑归宗：满屏剑落。不逐剑发声（8~32 把会糊成噪声），
         改成一串**递减的剑鸣**代表整轮 —— 现在有 metal() 了，
@@ -6221,13 +6380,26 @@ const SFX = {
     tone('triangle', 520, 780, 0.12, 0.042);
     noise(1600, 2600, 0.09, 0.028, 1.2, 'highpass');
   },
-  /* —— 拾得法宝（2026-09-24 装备系统）：上行三音 + 金属泛音。
-        故意和击杀音反着来 —— 击杀是下行的厚重，拾宝是上行的清亮，
-        玩家不用看画面、光听音高方向就知道刚才发生的是「得」还是「失」。 —— */
-  gear() {
-    metal(1568, 0.10, 0.050);
-    metal(2093, 0.10, 0.042, 0.06);
-    metal(2637, 0.17, 0.036, 0.12);
+  /* —— 拾得法宝：编钟连响，★ 品阶越高音符越多 ——
+     提示词 14.4 原文：「装备掉落 · 编钟连响 · 品阶越高音符越多（凡 1 声 / 灵 2 声 /
+     玄 3 声 / 天 4 声 / 仙 5 声）」，检查项 22 也点名这一条。
+
+     旧实现是**固定三声**、与品阶完全无关 —— 于是「掉了一件神品」和
+     「掉了一件凡品」听起来一模一样，玩家对品阶的期待感被抹平了。
+
+     本作是 **6 品阶**（凡/良/上/灵/仙/神），比提示词那张表多一阶，
+     所以扩成 1~6 声：每升一品多响一声编钟。这是有意偏离原表的地方 ——
+     合成 6 阶去凑 5 声会让相邻两阶听不出差别，而「听出差别」才是这条需求的目的。
+     ★ 六声走的是上行五声音阶的六度扩展（C-D-E-G-A-C），最后一声音最高、最长，
+       神品的第六声额外叠一记长余音，让「出了神品」这件事有明确的听觉句号。
+     ★ 传参兜底：调用点漏传品阶时按 1 声处理，不会静默变成无声。 */
+  gear(tierIdx) {
+    const n = Math.max(1, Math.min(6, (Math.round(tierIdx) || 0) + 1));
+    const sc = [1046.50, 1174.66, 1318.51, 1567.98, 1760.00, 2093.00];
+    for (let i = 0; i < n; i++) {
+      bell(sc[i], 0.95 + i * 0.18, 0.046 - i * 0.003, i * 0.085);
+    }
+    if (n >= 6) bell(sc[5] * 0.5, 2.40, 0.030, 0.60);      // 神品：一记长余音收尾
   },
   coin() {
     tone('sine', 1318.5, 1318.5, 0.09, 0.046);
@@ -6258,139 +6430,303 @@ const SFX = {
     if (!sfxThrottle('guide', 300)) return;
     tone('sine', 1760, 2093, 0.075, 0.020);
   },
-  /* —— 结算：通达 / 道消 —— */
+  /* —— 通关：编钟 + 箫上滑 2s（提示词 14.4） ——
+     ★ 旧版是五音 triangle 上行 + 一个低音垫，缺了「编钟」这层礼器身份，
+       也没有「箫上滑」——而箫上滑才是「飞升」这个画面在听觉上的对位。
+       现在是两层：编钟给「功德圆满」的结果感，箫的滑音给「往上走」的方向感。 */
   win() {
-    [523.25, 659.25, 784, 1046.5, 1318.5].forEach((f, i) => {
-      tone('triangle', f, f, 0.50, 0.068, i * 0.09);
-    });
-    tone('sine', 130.8, 130.8, 1.2, 0.055, 0.36);
+    bgmMarkResult('win');
+    bell(523.25, 2.00, 0.060);
+    bell(659.25, 1.90, 0.048, 0.12);
+    bell(1046.50, 2.00, 0.044, 0.24);
+    tone('sine', 659.25, 1046.50, 1.30, 0.045, 0.06);        // 箫上滑：滑音本身
+    voice(523.25, 1.60, 0.032, 0.06, 0.18);                  // 箫的气声衬底（慢起音）
+    noise(1400, 2600, 0.95, 0.016, 0.9, 'highpass', 0.06);
   },
+  /* —— 死亡 / 道消：琴弦崩断（噪 + 下滑）1.2s ——
+     提示词 14.4：「死亡 · 琴弦崩断（噪 + 下滑）· 1.2s，要有'断了'的实感」。
+     ★ 旧版是四音下行 triangle，有气无力的「往下掉」，听不出「断」。
+       「断」是瞬态：先一记高频噪声（弦崩的那一下），再让音高从 440 一路垮到 62Hz，
+       最后那个音高**塌在**那里不动 —— 垮下去的音程比掉下去的音阶更像断弦。 */
   lose() {
+    bgmMarkResult('lose');
+    noise(2600, 400, 0.20, 0.080, 1.6);                      // 崩断的瞬态
+    tone('sine', 440.00, 62.00, 1.20, 0.072);                // 弦松掉的下滑
     [392, 349.23, 293.66, 220].forEach((f, i) => {
-      tone('triangle', f, f * 0.99, 0.55, 0.068, i * 0.16);
+      tone('triangle', f, f * 0.99, 0.55, 0.048, i * 0.16);
     });
-    tone('sine', 110, 55, 1.4, 0.062, 0.50);
+    voice(110, 1.60, 0.046, 0.30, 0.30);
   },
 };
 
 /* =========================================================================
-   环境音（程序化 BGM）：**每一章都不一样**
+   环境音（程序化 BGM）：场景级 + 关卡级 两级曲库
    ---------------------------------------------------------------------------
-   用户要求：「每一章的背景音乐，如果能加就加」。
-   能加 —— 而且不需要任何外部音频文件：本作的音乐是振荡器实时合成的，
-   所以「换一首曲子」等于「换一张音阶 / 节拍 / 音色表」，体积零增加。
+   提示词第 14.3 节给了**场景级**六档参数表（道号页 / 大厅 / 普通关隘 /
+   精英首领 / 渡劫心魔 / 通关），第 16 节与速查表 2.10 再要求**关卡级**细分
+   （「一关一音」，检查项 25：盲听能否分辨换关、每关是否有 2 秒入境音景、
+   同域内是否是同源变奏、跨域才换动机、切关时旧调度器是否被清掉）。
 
-   四章各自的音乐性格（跟美术与怪群构成对齐，不是随便选个调）：
-     · 第一章 云海秘境 —— 平和：C 宫五声、慢（1800ms）、稀疏，仙气
-     · 第二章 万剑冢   —— 冷冽：D 商五声、中速，偶尔一记高频「剑鸣」
-     · 第三章 天劫台   —— 压抑：A 羽五声、最急（1200ms），远处闷雷滚动
-     · 第四章 幽冥鬼域 —— 阴森：含小三度的暗调、最慢（2200ms），
-                          低音垫音故意左右失谐 7 音分，产生缓慢拍频（鬼气）
-   三个副本各一套：无尽妖潮（密而紧）、限时斩妖（快而亮）、魔将连战（低沉不谐和）。
+   原先只做了「四章各一首」——**只有战斗场景有声，道号页 / 大厅 / 结算页全程静音**，
+   场景表里六档有四五档是空的。这一版把两级补齐：
 
-   音量一律压到极低（≤0.02），只做氛围、不与音效争抢注意力 ——
-   音效是「事件准确」，BGM 是「场景准确」，两者不能互相盖。
+   【场景级】六档，各自一个调式与配器（照 14.3 抄，不自由发挥）：
+     道号页  宫调 C · 56bpm 级 → 箫独奏、极稀、空灵留白
+     大厅    羽调 A · 64bpm 级 → 古琴 + 磬点缀、悠远松弛
+     普通关隘 商调 D · 96bpm 级 → 古琴拨弦 + 低鼓、有行进感
+     首领    角调 E · 132bpm 级 → 战鼓 + 急促琴扫、压迫
+     渡劫心魔 借变徵 · 150bpm 级 → 鼓 + 低吟、危机感
+     通关    宫调上行 · 72bpm 级 → 磬 + 箫昂扬、释然
+     败北    羽调下行 → 古琴两音、低沉
+
+   【关卡级】同一章内不再是一首播到底，而是**同源变奏**：
+     调式（scale）不变 → 听得出「还在这一域」；
+     动机（motif，一串固定的音级走位）+ 节拍微调 + 密度 → 听得出「换了关」。
+     第 10 节回到主音收束（检查项 25 要的「第 20 关是否回到宫调收束」在四章制下
+     落到每章末节，逻辑同构）。四十关就是四十个可分辨的变奏。
+     ★ 变奏只动动机与密度、绝不动 scale —— 换 scale 是「换域」，那是章节的权限。
+
+   【交叉淡化】提示词 14.3：切场景禁止硬切，两个 BGM 层用 0.8 秒 gainNode
+     交叉淡化，战鼓可以硬进但旋律层必须淡。旧实现是 `bgmCur = null` 直接切，
+    **是硬切**。现在每首曲子挂在自己的 gain 总线上，换曲时一升一降，
+     0.8 秒后旧总线断连（不断连就是内存泄漏，正是提示词警告的那一类）。
    ========================================================================= */
-/* scale：可用音高；beat：一拍毫秒数；hi/hiP：高音点缀概率与音量
-   lowWave/lowV/lowLen：低频垫音；fifth：是否叠五度；clang/thunder：章专属点缀概率
-   det：音分失谐（阴森感的来源） */
+/* scale：可用音高；beat：一拍毫秒数；hi/hiV/hiLen/hiWave：高音点缀的概率、音量、长度、波形
+   lowWave/lowV/lowLen/lowN：低频垫音；fifth：是否叠五度；det：音分失谐
+   drum：是否有鼓层；clang/thunder/tritone：专属点缀概率；k：曲目唯一键（换曲判据） */
 const BGM = {
-  ch0: { n:'云海秘境', beat:1800, hi:0.70, hiWave:'triangle', hiOct:2, hiV:0.017, hiLen:1.10,
-         lowWave:'sine', lowV:0.020, lowLen:3.40, fifth:true, lowN:3,
+  /* ---------- 场景级：非战斗 ---------- */
+  sc_title: { k:'sc_title', n:'山门', beat:2000, hi:0.40, hiWave:'triangle', hiOct:2, hiV:0.015, hiLen:1.30,
+         lowWave:'sine', lowV:0.018, lowLen:4.00, fifth:true, lowN:2,
+         scale:[261.63, 293.66, 329.63, 392.00, 440.00, 523.25] },        // 宫调 C（空灵）
+  sc_name: { k:'sc_name', n:'问道', beat:2300, hi:0.30, hiWave:'sine', hiOct:2, hiV:0.014, hiLen:1.80,
+         lowWave:'sine', lowV:0.016, lowLen:4.60, fifth:false, lowN:2,
+         scale:[261.63, 293.66, 329.63, 392.00, 440.00, 523.25] },        // 宫调 C · 极稀（入定）
+  sc_lobby: { k:'sc_lobby', n:'洞天', beat:1850, hi:0.55, hiWave:'triangle', hiOct:2, hiV:0.016, hiLen:1.20,
+         lowWave:'sine', lowV:0.019, lowLen:3.80, fifth:true, lowN:3, chime:0.08,
+         scale:[330.00, 371.25, 440.00, 495.00, 550.00, 660.00] },        // 羽调 A（悠远松弛）
+  sc_result_win: { k:'sc_win', n:'功德圆满', beat:1500, hi:0.60, hiWave:'triangle', hiOct:2, hiV:0.017, hiLen:1.60,
+         lowWave:'sine', lowV:0.020, lowLen:3.20, fifth:true, lowN:3, chime:0.12,
+         scale:[523.25, 587.33, 659.25, 783.99, 880.00, 1046.50] },       // 宫调上行（释然）
+  sc_result_lose: { k:'sc_lose', n:'道消', beat:2400, hi:0.32, hiWave:'sine', hiOct:1, hiV:0.013, hiLen:2.00,
+         lowWave:'sine', lowV:0.017, lowLen:4.60, fifth:false, lowN:2,
+         scale:[220.00, 261.63, 293.66, 329.63, 392.00, 440.00] },        // 羽调下行（低沉）
+  /* ---------- 场景级：四章战斗 ---------- */
+  ch0: { k:'ch0', n:'云海秘境', beat:1800, hi:0.70, hiWave:'triangle', hiOct:2, hiV:0.017, hiLen:1.10,
+         lowWave:'sine', lowV:0.020, lowLen:3.40, fifth:true, lowN:3, drum:true,
          scale:[261.63, 293.66, 329.63, 392.00, 440.00, 523.25] },        // C 宫（仙气）
-  ch1: { n:'万剑冢',   beat:1600, hi:0.62, hiWave:'sine',     hiOct:2, hiV:0.016, hiLen:0.85,
-         lowWave:'triangle', lowV:0.017, lowLen:3.00, fifth:true, lowN:3,
+  ch1: { k:'ch1', n:'万剑冢',   beat:1600, hi:0.62, hiWave:'sine',     hiOct:2, hiV:0.016, hiLen:0.85,
+         lowWave:'triangle', lowV:0.017, lowLen:3.00, fifth:true, lowN:3, drum:true,
          clang:0.18,
          scale:[293.66, 329.63, 392.00, 440.00, 523.25, 587.33] },        // D 商（冷冽）
-  ch2: { n:'天劫台',   beat:1200, hi:0.58, hiWave:'triangle', hiOct:2, hiV:0.014, hiLen:0.72,
-         lowWave:'sawtooth', lowV:0.013, lowLen:2.40, fifth:false, lowN:2,
+  ch2: { k:'ch2', n:'天劫台',   beat:1200, hi:0.58, hiWave:'triangle', hiOct:2, hiV:0.014, hiLen:0.72,
+         lowWave:'triangle', lowV:0.016, lowLen:2.40, fifth:false, lowN:2, drum:true,
          thunder:0.10, det:4,
          scale:[220.00, 261.63, 293.66, 329.63, 392.00, 440.00] },        // A 羽（压抑）
-  ch3: { n:'幽冥鬼域', beat:2200, hi:0.45, hiWave:'sine',     hiOct:2, hiV:0.013, hiLen:1.50,
-         lowWave:'sine', lowV:0.019, lowLen:4.20, fifth:false, lowN:3,
+  ch3: { k:'ch3', n:'幽冥鬼域', beat:2200, hi:0.45, hiWave:'sine',     hiOct:2, hiV:0.013, hiLen:1.50,
+         lowWave:'sine', lowV:0.019, lowLen:4.20, fifth:false, lowN:3, drum:true,
          det:7, drone:true,
          scale:[293.66, 349.23, 392.00, 440.00, 523.25, 587.33] },        // 含小三度（阴森）
-  dn_endless: { n:'无尽妖潮', beat:1300, hi:0.78, hiWave:'triangle', hiOct:2, hiV:0.015, hiLen:0.70,
-         lowWave:'triangle', lowV:0.015, lowLen:2.20, fifth:false, lowN:2, det:3,
+  /* ---------- 场景级：三个副本 ---------- */
+  dn_endless: { k:'dn_endless', n:'无尽妖潮', beat:1300, hi:0.78, hiWave:'triangle', hiOct:2, hiV:0.015, hiLen:0.70,
+         lowWave:'triangle', lowV:0.015, lowLen:2.20, fifth:false, lowN:2, det:3, drum:true,
          scale:[246.94, 293.66, 329.63, 392.00, 493.88, 587.33] },        // B 调式（越撑越紧）
-  dn_timed: { n:'限时斩妖', beat:900,  hi:0.85, hiWave:'square',   hiOct:2, hiV:0.011, hiLen:0.42,
-         lowWave:'triangle', lowV:0.014, lowLen:1.60, fifth:true, lowN:3,
+  dn_timed: { k:'dn_timed', n:'限时斩妖', beat:900,  hi:0.85, hiWave:'triangle', hiOct:2, hiV:0.011, hiLen:0.42,
+         lowWave:'triangle', lowV:0.014, lowLen:1.60, fifth:true, lowN:3, drum:true,
          scale:[261.63, 329.63, 392.00, 440.00, 523.25, 659.25] },        // C 宫加速版（催命）
-  dn_boss: { n:'魔将连战', beat:1400, hi:0.50, hiWave:'sawtooth', hiOct:2, hiV:0.012, hiLen:0.95,
-         lowWave:'sawtooth', lowV:0.016, lowLen:3.00, fifth:false, lowN:2,
+  dn_boss: { k:'dn_boss', n:'魔将连战', beat:1400, hi:0.50, hiWave:'sine', hiOct:2, hiV:0.012, hiLen:0.95,
+         lowWave:'triangle', lowV:0.016, lowLen:3.00, fifth:false, lowN:2, drum:true,
          tritone:0.16, det:5,
          scale:[220.00, 233.08, 277.18, 311.13, 349.23, 415.30] },        // 半音密集（压迫）
 };
-let bgmTimer = null, bgmStep = 0, bgmCur = null, bgmNoticed = null;
-/* 当前该放哪一首：主线按章取，副本按玩法取。
-   G / chapterOf 来自其它 script 块 —— 经典 <script> 共享同一个全局词法环境，
-   所以 06_audio.js 能直接读到它们（本文件本来就在用 G.scene）。 */
+
+/* ★ 关卡级动机表：每条是 5 个音级（0~5 = scale 的下标），一章 10 节各一条。
+   它是「一关一音」的载体 —— 调式相同（同域），但每关走位的音不同（换关）。
+   首末两条都落回主音，给「起句 / 收束」一个听得出的一致性。 */
+const SEC_MOTIF = [
+  [0, 2, 4, 3, 1],
+  [1, 3, 5, 4, 2],
+  [2, 4, 3, 1, 0],
+  [0, 3, 2, 4, 1],
+  [4, 2, 3, 1, 5],
+  [1, 4, 2, 5, 3],
+  [3, 1, 4, 2, 0],
+  [2, 5, 3, 1, 4],
+  [5, 3, 4, 2, 1],
+  [0, 2, 1, 3, 4],
+];
+
+/* 把章级 profile 派生成「第 s 节」的变奏（s = 0..9，章内节号） */
+function secVariant(pr, s, ch) {
+  const i = ((s % 10) + 10) % 10;
+  return Object.assign({}, pr, {
+    k: 'ch' + ch + 's' + i,
+    n: pr.n + ' · 第 ' + (i + 1) + ' 节',
+    /* 章内越往后越紧：一拍缩短最多 6%（10 节下来约 +6% 速度感），
+       这是「同域内越走越凶险」在听觉上的对应（检查项 24 的音频版） */
+    beat: Math.round(pr.beat * (1 + (i - 4.5) * 0.013)),
+    hi: Math.min(0.92, Math.max(0.30, (pr.hi || 0.6) + (i - 4.5) * 0.020)),
+    motif: SEC_MOTIF[i],
+    /* 低音根音在 scale 内的起始位置：起句与收束都落 0（主音），中间游走 */
+    rootDeg: (i === 0 || i === 9) ? 0 : (i % 2),
+  });
+}
+
+let bgmTimer = null, bgmStep = 0, bgmCur = null, bgmKey = null, bgmNoticed = null;
+let bgmBus = null, bgmMod = 0, bgmLastResult = null;
+const BGM_FADE = 0.8;      // 交叉淡化时长（秒），提示词 14.3 指定
+
+/* 当前该放哪一首：场景 → 曲目。
+   G / chapterOf / CH_SIZE 来自其它 script 块 —— 经典 <script> 共享同一个全局
+   词法环境，所以 06_audio.js 能直接读到它们（本文件本来就在用 G.scene）。 */
 function bgmProfile() {
-  if (!G || G.scene !== 'battle') return null;
-  if (G.mode === 'level') return BGM['ch' + Math.max(0, Math.min(3, chapterOf(G.lvIdx)))] || BGM.ch0;
-  return BGM['dn_' + G.mode] || BGM.ch0;
+  if (!G) return null;
+  if (G.scene === 'battle') {
+    if (G.mode === 'level') {
+      const ch = Math.max(0, Math.min(3, chapterOf(G.lvIdx)));
+      return secVariant(BGM['ch' + ch] || BGM.ch0, G.lvIdx % CH_SIZE, ch);
+    }
+    return BGM['dn_' + G.mode] || BGM.ch0;
+  }
+  if (G.scene === 'name')   return BGM.sc_name;
+  if (G.scene === 'title')  return BGM.sc_title;
+  if (G.scene === 'result') return (bgmLastResult === 'win') ? BGM.sc_result_win : BGM.sc_result_lose;
+  /* 大厅与所有面板共用大厅曲 —— 面板是叠在大厅上的，换曲反而突兀 */
+  return BGM.sc_lobby;
 }
 function startBGM() {
   if (bgmTimer) return;
-  bgmStep = 0; bgmCur = null;
+  bgmStep = 0; bgmCur = null; bgmKey = null;
   bgmTick();
 }
 function stopBGM() {
   if (bgmTimer) { clearTimeout(bgmTimer); bgmTimer = null; }
-  bgmCur = null; bgmStep = 0;
+  bgmCur = null; bgmKey = null; bgmStep = 0;
+  bgmFadeOut();
 }
-/* 进关卡 / 进副本时调一下：不等下一拍，立刻换曲（否则最长要等 2.2 秒才切） */
-function bgmKick() { bgmCur = null; bgmStep = 0; if (!bgmTimer) startBGM(); }
+/* 曲线淡出并断连（关掉 BGM 时用，不能直接断 —— 会「啪」一声） */
+function bgmFadeOut() {
+  const ob = bgmBus;
+  bgmBus = null;
+  if (!ob || !AC) return;
+  try {
+    const t = AC.currentTime;
+    ob.gain.cancelScheduledValues(t);
+    ob.gain.setValueAtTime(Math.max(0.0001, ob.gain.value), t);
+    ob.gain.linearRampToValueAtTime(0.0001, t + BGM_FADE);
+    setTimeout(function () { try { ob.disconnect(); } catch (e) {} }, (BGM_FADE + 0.3) * 1000);
+  } catch (e) {}
+}
+/* 换曲：新建一条总线淡入，旧总线淡出（0.8 秒交叉淡化） */
+function bgmSwapBus() {
+  if (!audioReady || !AC || !AC.createGain) return;
+  try {
+    const nb = AC.createGain(), t = AC.currentTime;
+    nb.gain.setValueAtTime(0.0001, t);
+    nb.gain.linearRampToValueAtTime(1, t + BGM_FADE);
+    nb.connect(master);
+    const ob = bgmBus;
+    if (ob) {
+      ob.gain.cancelScheduledValues(t);
+      ob.gain.setValueAtTime(Math.max(0.0001, ob.gain.value), t);
+      ob.gain.linearRampToValueAtTime(0.0001, t + BGM_FADE);
+      setTimeout(function () { try { ob.disconnect(); } catch (e) {} }, (BGM_FADE + 0.3) * 1000);
+    }
+    bgmBus = nb;
+  } catch (e) {}
+}
+/* 进关卡 / 进副本时调一下：不等下一拍，立刻换曲（否则最长要等 2.2 秒才切），
+   并补一段 2 秒的「入境音景」—— 检查项 25 明确要求「每关是否有 2 秒入境音景
+   （独奏动机）」。它只用本关的动机音级独奏，所以入境就已经在预告这一关的旋律。 */
+function bgmKick() {
+  bgmCur = null; bgmKey = null; bgmStep = 0;
+  if (!bgmTimer) startBGM();
+  bgmEntrance();
+}
+/* 换屏（大厅↔面板↔结算）时调一下：立刻换曲但**不**放入境音景 ——
+   入境音景是「踏入一个关卡」的仪式，开个面板就独奏 2 秒会很吵。 */
+function bgmScene() { bgmKey = null; bgmCur = null; bgmStep = 0; if (!bgmTimer) startBGM(); }
+function bgmEntrance() {  if (!audioReady || !AC || !bgmOn() || !sfxOn()) return;
+  const pr = bgmProfile();
+  if (!pr) return;
+  const sc = pr.scale, mo = pr.motif || [0, 2, 4, 3, 1];
+  for (let i = 0; i < 3; i++) {
+    const f = sc[mo[i % mo.length]] * 2;
+    tone('triangle', f, f, 1.30, 0.038 - i * 0.005, i * 0.42, pr.det || 0);
+  }
+  noise(1500, 3000, 0.9, 0.010, 1.0, 'highpass', 0.10);
+}
 /* 一拍一调度（递归 setTimeout 而不是 setInterval）：
-   各章 bpm 不同，固定间隔的 setInterval 换不了速度；切章也要能立刻反映。 */
+   各章 bpm 不同，固定间隔的 setInterval 换不了速度；切关也要能立刻反映。 */
 function bgmTick() {
   bgmTimer = null;
-  if (!bgmOn() || !sfxOn()) { bgmCur = null; bgmStep = 0; return; }   // 关掉就停表，等 UI 再开
+  /* 关掉就停表并淡出（不能只 return —— 会留下一条永远在响的总线） */
+  if (!bgmOn() || !sfxOn()) { bgmCur = null; bgmKey = null; bgmStep = 0; bgmFadeOut(); return; }
   const pr = bgmProfile();
-  /* 换章 / 换副本：清空乐句计数，让新曲从根音重新起句。
-     不然新一章会踩在上一章的拍点上，听感上「串味」。 */
-  if (pr !== bgmCur) {
-    bgmStep = 0; bgmCur = pr;
-    /* 换曲时轻提示一次（每首曲子每局只报一次），让「四章四首」这件事被听出来 */
-    if (pr && bgmNoticed !== pr.n && typeof domToast === 'function') {
-      bgmNoticed = pr.n; domToast('♪ ' + pr.n);
+  /* ★ 换曲判据必须用**键**而不是对象引用：关卡级 profile 每拍都是新对象，
+     若按引用比较，`pr !== bgmCur` 会恒为真 → 每拍都重开一条总线（灾难性泄漏）。 */
+  if (pr && pr.k !== bgmKey) {
+    bgmStep = 0; bgmCur = pr; bgmKey = pr.k; bgmSwapBus();
+    if (bgmNoticed !== pr.k && typeof domToast === 'function') {
+      bgmNoticed = pr.k; domToast('♪ ' + pr.n);
     }
   }
-  if (pr && audioReady && AC && !G.paused) { bgmStep++; bgmStepPlay(pr); }
-  bgmTimer = setTimeout(bgmTick, pr ? pr.beat : 1500);
+  if (pr && audioReady && AC && !G.paused) { bgmStep++; bgmStepPlay(pr, bgmBus); }
+  bgmMod = pr ? pr.beat : 1500;
+  bgmTimer = setTimeout(bgmTick, bgmMod);
 }
-function bgmStepPlay(pr) {
+function bgmStepPlay(pr, dest) {
   const det = pr.det || 0;
-  /* 每 5 拍换一次低音根音，形成极缓的和声推进 */
+  const sc = pr.scale;
+  /* 低音根音：每 5 拍一次，极缓的和声推进。
+     rootDeg 让每关的起点落在一个固定的音级上（起句/收束落主音）。 */
   if (bgmStep % 5 === 1) {
-    const root = pr.scale[(Math.random() * pr.lowN) | 0] / 2;
-    tone(pr.lowWave, root, root, pr.lowLen, pr.lowV, 0, det);
-    if (pr.fifth) tone('sine', root * 1.5, root * 1.5, pr.lowLen * 0.76, pr.lowV * 0.5, 0.1);
+    const deg = Math.min(sc.length - 1, pr.rootDeg || 0);
+    const root = sc[deg] / 2;
+    tone(pr.lowWave, root, root, pr.lowLen, pr.lowV, 0, det, dest);
+    if (pr.fifth) tone('sine', root * 1.5, root * 1.5, pr.lowLen * 0.76, pr.lowV * 0.5, 0.1, det, dest);
     /* 幽冥：左右各失谐一点点，两个正弦叠出缓慢拍频，是「鬼气」最省力的做法 */
-    if (pr.drone) tone('sine', root * 1.004, root * 1.004, pr.lowLen, pr.lowV * 0.7, 0, det);
+    if (pr.drone) tone('sine', root * 1.004, root * 1.004, pr.lowLen, pr.lowV * 0.7, 0, det, dest);
   }
-  /* 高音点缀：不是每拍都有，密度即「情绪」，所以各章给不同概率 */
+  /* 底层鼓：每 2 拍一次，音量极低（提示词 14.3：「无鼓会飘，无鼓不能有行进感」）。
+     ★ 鼓要**硬进**不做淡化 —— 提示词允许（「战鼓可以硬进，那是刻意的惊吓点」）。 */
+  if (pr.drum && bgmStep % 2 === 0) {
+    drum(96, 0.22, 0.020, 0, dest);
+  }
+  /* 高音点缀：有动机表就按动机走（每关可分辨），没有就随机取音。
+     ★ 这是「一关一音」真正落地的地方：同一章不同关，旋律走位不同。 */
   if (Math.random() < pr.hi) {
-    const f = pr.scale[(Math.random() * pr.scale.length) | 0] * (pr.hiOct || 2);
-    tone(pr.hiWave, f, f, pr.hiLen, pr.hiV, 0, det);
+    const mo = pr.motif;
+    const f = (mo ? sc[mo[(bgmStep - 1) % mo.length] % sc.length]
+                  : sc[(Math.random() * sc.length) | 0]) * (pr.hiOct || 2);
+    tone(pr.hiWave, f, f, pr.hiLen, pr.hiV, 0, det, dest);
   }
-  /* 章专属点缀 */
+  /* 点缀「灵」：玉磬，低概率触发（约 8%），制造「偶然的灵气」（提示词 14.3） */
+  if (pr.chime && Math.random() < pr.chime) {
+    const f = sc[(Math.random() * sc.length) | 0] * 4;
+    bell(f, 1.60, 0.010, 0, dest);
+  }
+  /* 曲目专属点缀 */
   if (pr.clang && Math.random() < pr.clang) {
     /* 万剑冢：远处一记剑鸣（高频正弦、衰减极快），比加音轨省得多 */
-    const f = pr.scale[(Math.random() * pr.scale.length) | 0] * 4;
-    tone('sine', f, f * 0.995, 0.42, 0.009);
+    const f = sc[(Math.random() * sc.length) | 0] * 4;
+    tone('sine', f, f * 0.995, 0.42, 0.009, 0, det, dest);
   }
   if (pr.thunder && Math.random() < pr.thunder) {
     /* 天劫台：远处闷雷滚动（低通噪声，从很低再往下扫） */
-    noise(190, 62, 1.5, 0.030, 0.5, 'lowpass');
-    tone('sine', 66, 44, 1.6, 0.026);
+    noise(190, 62, 1.5, 0.030, 0.5, 'lowpass', 0, dest);
+    tone('sine', 66, 44, 1.6, 0.026, 0, det, dest);
   }
   if (pr.tritone && Math.random() < pr.tritone) {
-    /* 魔将连战：偶尔压一个减五度长音，不谐和感 = 危险 */
-    const r = pr.scale[0] / 2;
-    tone('sawtooth', r * 1.414, r * 1.414, 2.6, 0.014);
+    /* 魔将连战：偶尔压一个减五度长音，不谐和感 = 危险。
+       ★ 第四处锯齿波已换成正弦 —— 不谐和感来自音程（×1.414 的减五度），不来自波形。 */
+    const r = sc[0] / 2;
+    tone('sine', r * 1.414, r * 1.414, 2.6, 0.014, 0, det, dest);
   }
 }
+/* 让 BGM 知道刚才是胜是败（结算页要放不同的一首）。
+   由 SFX.win() / SFX.lose() 顺手设置 —— 这样音频层不必反向依赖 UI 的胜负变量。 */
+function bgmMarkResult(w) { bgmLastResult = w; }
 
 
 /* ===== 04_ui.js ===== */
@@ -6450,6 +6786,9 @@ function showScreen(id) {
   el['ov-levelup'].classList.remove('on');
   el['ov-incense'].classList.remove('on');
   renderGuide();                       // 换屏后重算底部引导条（战斗 / 标题 / 结算页会自动隐藏）
+  /* 场景音：六档场景级曲目（道号页 / 大厅 / 结算 / 面板）跟屏切换。
+     不再放入境音景 —— 那是「踏入关卡」的仪式，开个面板独奏 2 秒会很吵。 */
+  if (typeof bgmScene === 'function') bgmScene();
 }
 function enterBattleUI() {
   for (const s of SCREENS) if (el[s]) el[s].classList.remove('on');
@@ -7115,7 +7454,8 @@ function gearDoEquip() {
   gearPick = { src:'worn', slot:g.slot };
   saveGame(); renderGear();
   domToast('已佩戴 ' + gearLabel(g));
-  SFX.gear();
+  /* 佩戴不是「掉落」—— 用一声编钟做确认就够了，按品阶响 6 声会像得了新装备 */
+  SFX.gear(0);
 }
 function gearDoOff() {
   if (!gearPick || gearPick.src !== 'worn') return;
@@ -7428,6 +7768,9 @@ function openLevelUp() {
   el['lvup-choices'].innerHTML = h;
   curOffer = list;
   el['ov-levelup'].classList.add('on');
+  /* 提示词 14.4：「升级三选一弹出 · 磬 + 低吟 pad · 0.6s，配合画面短暂停顿」。
+     音效放在**面板弹出**这一刻（不是选择那一刻）—— 那才是「三选一」这个事件本身。 */
+  SFX.levelup();
 }
 function pickSkill(i) {
   const s = curOffer[i];
@@ -7435,7 +7778,11 @@ function pickSkill(i) {
   s.f(P, hero);
   G.taken[s.k] = (G.taken[s.k] || 0) + 1;
   G.pending--;
-  SFX.levelup();                                    // 择技成功的反馈音
+  /* 择技的反馈音用「古琴拨弦」而不是 levelup —— 提示词 14.4 把这两件事分开了：
+     「升级三选一**弹出**」是磬 + 低吟（仪式感，已由 openLevelUp 播），
+     「**选择**技能」是古琴拨弦 0.15s（我做了个决定）。
+     同一个音连播两次既模糊语义、又把「决定」这件事的分量摊薄了。 */
+  SFX.pickSkill();
   burst(hero.x, hero.y - 40, 26, '#ffe9a8', 260, 6);
   popText(hero.x, hero.y - 110, s.n + ' · ' + G.taken[s.k] + ' 层', '#ffe9a8', 2);
 
@@ -7616,7 +7963,13 @@ function openLoot(list) {
     ? lootItems.map(lootHTML).join('')
     : '<div class="loot-none">此局空手而回<br>再战一局，或有奇遇</div>';
   el['ov-loot'].classList.add('on');
-  if (lootItems.length) SFX.gear();
+  /* 结算弹「获得物品」时按**本局最高品阶**响编钟 —— 一局掉好几件时，
+     只报最亮的那一件才有意义（报最后一件事，听感上等于随机）。 */
+  if (lootItems.length) {
+    let best = 0;
+    for (const it of lootItems) best = Math.max(best, it.ti | 0);
+    SFX.gear(best);
+  }
 }
 function confirmLoot() {
   if (!lootPending) return;
