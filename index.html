@@ -2248,9 +2248,13 @@ const WAVE1_MUL = 1.25;
      v2  「怪物血量再乘以2倍」  → ×2
      v3  「怪物的血量再乘两倍」  → ×4   ← 这一版**已作废**
      v4  「乘三倍，之前的两倍再两倍取消」→ ×3
-     v5  「把怪物的血量调低百分之30」   → ×2.1   ← 当前（= 3 × 0.7）
+     v5  「把怪物的血量调低百分之30」   → ×2.1   ← **已撤销**
+     v6  「血量刚刚叫你改，现在还是不要改动」→ ×3     ← 当前（撤销 v5，退回 v4 的值）
    每次口径变更都是**在上一版基础上乘一个系数**，而不是回到基准重算 ——
    「调低 30%」相对的是 v4 的 ×3，不是相对基准 ×1（那样会掉到 ×0.7，比初版还软）。
+   ★ v6 是**撤销**而不是又一次乘系数：用户明确说「那个改动不要动」，
+     于是回到被撤销前的那一版（v4 的 ×3），而不是 ×2.1 × 某个数。
+     撤销一次的口径要写清楚，否则以后看到 ×3 会以为 v4 从来没被覆盖过。
 
    关键在「第一波开始」四个字 —— 不是给某一波加权，而是**整条血量曲线等比缩放**：
    第 1 波就带上倍率，之后 LV/IN/WV/CH_STEP 的递增关系原封不动地继续叠加。
@@ -2266,8 +2270,40 @@ const WAVE1_MUL = 1.25;
      自己给（`1 + round × 0.35`），是"越撑越强"的独立曲线，本来就不在这条链上。
    ⚠ 直接后果：清怪所需时间随倍率同向变化。v4 的 ×3 曾让单局明显拉长，
      v5 回调到 ×2.1 后约为 v4 的 70%，是玩家体感"怪变脆了"的那一档；
-     进一步提速仍应走「飞剑伤害 / 攻速」的乘区成长与装备词条，而不是继续压这个旋钮。 */
-const MOB_HP_MUL = 2.1;
+     进一步提速仍应走「飞剑伤害 / 攻速」的乘区成长与装备词条，而不是继续压这个旋钮。
+     v6 撤销回 ×3 后又叠上 MOB_POWER_MUL(=1.15)，等效 ≈ ×3.45 —— 这是玩家
+     能明显感到"怪更耐打"的一档，调平衡时别再往这个旋钮上叠。 */
+const MOB_HP_MUL = 3;
+
+/* =========================================================================
+   MOB_POWER_MUL —— 「所有怪物加强 1.15 倍」（2026-09-24 晚场用户口径）
+   -------------------------------------------------------------------------
+   用户原话：「所有怪物在原数值的基础上加强 1.15 倍。」
+   与血量的 -30% 那笔**方向相反**：用户先撤销了 -30%（见上 v6），
+   再要求全体加强 15% —— 两者相乘才是最终难度，别只看其中一个就下结论。
+
+   ★ 作用面 = **血量 + 攻击力**（用户从四个选项里明确选的"血量+攻击力"）。
+     **不含移速、不含远程子弹速度** —— 那两项已各有专属旋钮
+     （MOB_MELEE_SPD_MUL / FOE_SHOT_SPD_MUL），再乘一遍就变成 ×1.84 / ×1.84，
+     与用户"加强 1.15 倍"的字面不符。
+
+   ★ 为什么乘在 mobScale() / mobAtkScale() 里，而不是 mkMob 里：
+     「所有怪物」四个字要求**魔将也包含在内**，而魔将的 hp/atk 是在 spawnBoss 里
+     用 bossTune 的值**覆写**过的（mkMob 给的初值根本留不下来）。
+     这两条曲线函数是**所有**怪物 hp/atk 的唯一共同上游：
+       小怪/召唤物 → mkMob(MOBS[i], mobScale(), mobAtkScale())
+       妖修(远程)  → mkMob(RANGED, mobScale()*0.8, mobAtkScale()*0.9)
+       魔将        → m.hp = t.hp * mobScale() …… m.atk = t.atk * mobAtkScale() * 0.62
+       副本怪      → spawnMob(..., mobScale())
+     乘在这里，「所有怪物」是**结构上成立**的，不靠逐个 spawn 函数去记得加。
+
+   ★ 唯一的例外是心魔的**血量**：它不走 mobScale，而是
+     `clamp(estimateDPS() × 5.5, 300, 11000)`（按玩家当前 DPS 反推"约 5.5 秒可斩"）。
+     这是个**动态**设计常数：玩家变强它就变厚，本来就随行就市。
+     为兑现"所有怪物"，这里也乘了 MOB_POWER_MUL（→ 约 6.3 秒），
+     同时体现"心魔也更耐打了"。它的攻击力走 mkMob，自动跟着 mobAtkScale 一起 ×1.15。 */
+const MOB_POWER_MUL = 1.15;
+
 
 /* =========================================================================
    怪物「压迫感」四旋钮（2026-09-24 晚场用户口径）
@@ -3793,15 +3829,19 @@ function mobScale() {
   const k = 1 + G.lvIdx * LV_STEP + CH_STEP[ch] + inCh * IN_STEP
               + Math.max(0, G.wave - 1) * WV_STEP;
   /* MOB_HP_MUL：整条血量曲线等比缩放（第 1 波即生效，之后照常递增）。
+     MOB_POWER_MUL：「所有怪物加强 1.15 倍」的**血量那一半**。
      ★ 这里刻意不写具体倍数 —— 当前值、口径变更史、覆盖范围都记在 02_data.js
      的定义处。旋钮每调一次就改两处注释，必然漏一处（已经漏过一次）。 */
-  return (G.wave === 1 ? k * WAVE1_MUL : k) * MOB_HP_MUL;
+  return (G.wave === 1 ? k * WAVE1_MUL : k) * MOB_HP_MUL * MOB_POWER_MUL;
 }
 function mobAtkScale() {
   const ch = chapterOf(G.lvIdx), inCh = G.lvIdx - ch * CH_SIZE;
   const k = 1 + G.lvIdx * LV_STEP_A + CH_STEP[ch] * CH_STEP_A + inCh * IN_STEP_A
               + Math.max(0, G.wave - 1) * WV_STEP_A;
-  return G.wave === 1 ? k * WAVE1_MUL : k;
+  /* MOB_POWER_MUL：「所有怪物加强 1.15 倍」的**攻击力那一半**。
+     ★ 魔将的最终 atk 在 spawnBoss 里是 `t.atk * mobAtkScale() * 0.62` ——
+       本函数是它唯一的上游，所以"所有怪物"含魔将是**结构上成立**的。 */
+  return (G.wave === 1 ? k * WAVE1_MUL : k) * MOB_POWER_MUL;
 }
 
 function spawnMob(mi, scale) {
@@ -4453,7 +4493,9 @@ function tryLevelUp() {
 function spawnHeartDemon() {
   const m = mkMob(MOBS[5], mobScale(), mobAtkScale() * 0.8);   // 以山魈为基底
   m.heartDemon = true; m.n = '心 魔'; m.alpha = 1;
-  m.hp = m.maxHp = clamp(estimateDPS() * 5.5, 300, 11000);      // 约 5.5 秒可斩
+  /* 血量按玩家 DPS 反推（约 5.5 秒可斩）；×MOB_POWER_MUL 后才 5.5 → 约 6.3 秒 ——
+     「所有怪物加强 1.15 倍」也包含心魔，而心魔的血量不走 mobScale，必须在此单独乘。 */
+  m.hp = m.maxHp = clamp(estimateDPS() * 5.5, 300, 11000) * MOB_POWER_MUL;
   m.exp = 0; m.coin = 0; m.r = 48;
   m.spd = hero.speed * 0.88 * DEMON_SPD_MUL;                   // 略慢于玩家，可风筝但甩不掉（再 ×DEMON_SPD_MUL 放缓）
   m.boss = false; m.ranged = false;
