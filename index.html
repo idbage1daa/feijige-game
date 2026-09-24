@@ -5232,6 +5232,14 @@ function enterBattleUI() {
   el['ov-pause'].classList.remove('on');
   el['ov-levelup'].classList.remove('on');
   el['ov-incense'].classList.remove('on');
+  /* ★ 必须在这里把暂停按钮点亮（用户报「手机打不开暂停界面」的根因）。
+     原实现里 `.on` 只在 showScreen() / endBattle() 里被 **remove**，
+     JS 中从来没有一处 add —— 所以 #hud-pause 恒为 display:none：
+     电脑上靠 Escape 键还能暂停（03_battle.js 的 keydown），手机完全没有入口，
+     点击落到画布右下是摇杆区、右上则什么都不发生。
+     画布 HUD 一直「右上角整块留给暂停按钮」（drawHUD 的注释），
+     但那个位置其实一直是空的 —— 现在把它真正填上。 */
+  el['hud-pause'].classList.add('on');
 }
 let toastTimer = 0;
 function domToast(msg) {
