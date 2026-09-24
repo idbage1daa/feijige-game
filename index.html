@@ -972,6 +972,11 @@ button{font-family:inherit;}
         <div class="row-act"><button class="mini gray" id="btn-fps" data-act="fps">关</button></div>
       </div>
       <div class="row">
+        <div class="row-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M12 3.2 4.6 7.6v8.8L12 20.8l7.4-4.4V7.6z"/><path d="M12 12v8.8"/><path d="M12 12 4.6 7.6"/><path d="M12 12l7.4-4.4"/></svg></div>
+        <div class="row-tx"><b>渲染画质</b><small id="set-q-txt">标准 · 屏幕原生分辨率（推荐）</small></div>
+        <div class="row-act"><button class="mini" id="btn-quality" data-act="quality">标准</button></div>
+      </div>
+      <div class="row">
         <div class="row-ic" style="background:linear-gradient(160deg,#ff9a8a,#b0442f);color:#fff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M4.6 7.4h14.8"/><path d="M9.4 7.4V4.6h5.2v2.8"/><path d="M6.4 7.4l1 12.2a1.6 1.6 0 0 0 1.6 1.4h6a1.6 1.6 0 0 0 1.6-1.4l1-12.2"/><path d="M10.4 11v6.6"/><path d="M13.6 11v6.6"/></svg></div>
         <div class="row-tx"><b>清除存档</b><small>境界、灵石、装备、关卡进度全部重置，不可恢复</small></div>
         <div class="row-act"><button class="mini gray" id="btn-wipe" data-act="wipe">清除</button></div>
@@ -1006,14 +1011,15 @@ button{font-family:inherit;}
 
 </div>
 
-<!-- ================= 剧情推进（章节解锁） ================= -->
+<!-- ================= 剧情演出（解锁节拍 / 章节推进） ================= -->
 <div class="ov" id="ov-story">
   <div class="ov-box">
-    <div class="ov-title">剧 情 推 进</div>
+    <div class="ov-title" id="st-title">剧 情 推 进</div>
     <div class="ov-sub" id="st-sub"></div>
     <div class="st-body" id="st-body"></div>
     <div class="st-unlock" id="st-unlock"></div>
     <button class="btn btn-main" id="btn-storyok" data-act="storyok">返 回 关 卡 闯 关</button>
+    <button class="btn btn-ghost" id="btn-storyskip" data-act="storyskip">跳 过</button>
   </div>
 </div>
 
@@ -1935,11 +1941,15 @@ function secLabel(sec) {
 /* 每章一段剧情：正文 + 解锁播报。正文刻意写短（3~4 句），因为玩家此刻
    刚打完一关，耐心有限；剧情是「解锁的仪式感」，不是阅读负担。 */
 const CH_STORY = [
+  /* ★ 本章解锁项改成「魔将图鉴」（原来是「剑 匣」）：
+     剑匣已经下沉到第一章第 2 节的解锁节拍（见 BEATS），章末这一场只留给图鉴，
+     否则剑匣会被两条链各解锁一次，剧情里也会重复播报一次。 */
   { ch:0, t:'云海秘境 · 试道终章',
     body:'你在秘境之眼前斩落山魈王。云海散去，山门长老自石阶上缓步而下，' +
-         '在你眉心一点：\n「外门试炼，过了。」\n他递来一只旧木匣——' +
-         '「往后斩妖所得，尽可存于此匣，以灵石温养，日久自成法器。」',
-    got:'剑 匣' },
+         '在你眉心一点：\n「外门试炼，过了。」\n他递来一册薄薄的旧书——' +
+         '「所斩妖魔，习性皆录于此。往后再遇，先看一眼它的路数。」\n' +
+         '书页泛黄，边角却被人反复翻过。',
+    got:'魔将图鉴' },
   { ch:1, t:'万剑冢 · 剑主既殁',
     body:'剑冢之主的残剑落地，四十万柄锈剑同时长鸣，随后一齐折断。\n' +
          '冢底露出一条向下的裂谷，寒气自谷中涌出，' +
@@ -1959,15 +1969,56 @@ const CH_STORY = [
          '笔画新得刺眼。\n你抬手，在那道空白上刻下自己的道号。',
     got:'论 道 榜' },
 ];
-/* 功能解锁表：needCh = 需要「第几章已全通」（章索引，0 起）。
-   ks 里同时写入口 key 与**中文名** —— 引导条要说「新解锁了【剑 匣】」，
-   名字从这里取，而不是回头去 04_ui.js 的 NAV 里捞：数据只管数据，
-   UI 只管渲染，中间不互相伸手。
-   不在这里的（继续修行 / 秘境试炼 / 道友录 / 功 法 / 妖 谱 / 天机阁 /
-   每日上香 / 境 界 / 设 置 / 法 宝）一律开局即开。 */
+/* ---------------- 功能解锁：两条触发链 ----------------
+   ① BEATS「解锁节拍」—— 绑定到**某一节通关**。粒度细、来得早，用来铺第一章的教学。
+      用户口径（2026-09-24）：「装备栏、背包、技能面板、商店……通过一段剧情解锁，
+      不一定一开始全部解锁」—— 这四样就是靠第一章第 1~4 节的节拍依次开的。
+      用户举的例子（废墟里捡到一只还能用的旧背包 → 有一段对话说它能收纳物品 →
+      演出结束解锁装备栏与背包）就是 BEATS[0]。
+   ② UNLOCKS「章节点」—— 绑定到**整章全通**。用来开副本玩法、图鉴、榜单这类大块内容。
+
+   两条链的 ks 都同时写入口 key 与**中文名**：引导条要说「新解锁了【法 宝】」，
+   名字从这里取，而不是回头去 04_ui.js 的 NAV 里捞 —— 数据只管数据、UI 只管渲染。
+
+   ★ 严格区分「解锁 UI 权限」和「解锁内容」：
+     这里给的只是**面板权限**。解锁那一刻面板里本来就可以是空的
+     （行囊里没装备、妖谱里没记录、商店里买不起），那是内容还没攒够，不是 bug。
+     反过来说，也绝不能因为「面板是空的」就把入口重新锁上。
+
+   ★ 没写进这两张表的（继续修行 / 秘境试炼 / 道友录 / 妖 谱 /
+     每日上香 / 境 界 / 设 置）一律开局即开 —— 它们是主循环本身，锁了没法玩。 */
+const BEATS = [
+  { lv:0, t:'后 山 · 拾 遗',
+    ks:[{ k:'gear', n:'法 宝（装备栏 · 行囊）' }],
+    body:'废墟里压着半只旧行囊，肩带断了，皮面却还没朽。\n' +
+         '你把它翻出来，抖落一地的灰与碎石。\n' +
+         '「还能用。」\n' +
+         '—— 此后斩妖所得的法器，总算有地方安置了。' },
+  { lv:1, t:'石 阶 · 旧 匣',
+    ks:[{ k:'equip', n:'剑 匣' }],
+    body:'石阶尽头搁着一只旧木匣，匣面刻着半句剑诀。\n' +
+         '你伸手拂去积尘，匣盖应声而开 —— 内里空空，却隐隐有灵石之气流转。\n' +
+         '「以灵石温养，日久自成法器。」\n' +
+         '你把匣子收进怀里。' },
+  { lv:2, t:'断 碑 · 残 卷',
+    ks:[{ k:'weapon', n:'功 法（技能面板）' }],
+    body:'半截断碑倒在路边，碑面被风雨磨得只剩几行残字。\n' +
+         '你蹲下辨认了半晌 —— 是一篇剑诀的总纲，后半阙已经看不清了。\n' +
+         '碑角压着一卷残卷，墨迹尚新。\n' +
+         '「先辈留下的东西，不该就这么埋着。」' },
+  { lv:3, t:'山 道 · 货 郎',
+    ks:[{ k:'shop', n:'天 机 阁（商店）' }],
+    body:'山道转弯处支着一顶褪色的青布伞。\n' +
+         '伞下是个货郎，正慢条斯理地拨着算盘。\n' +
+         '「小道友，斩妖换来的灵石，光攒着可没用。」\n' +
+         '他掀开担子一角：丹药、符篆、护身玉牌，摆得整整齐齐。' },
+];
 const UNLOCKS = [
-  { needCh:0, ks:[{ k:'equip', n:'剑 匣' }, { k:'bossdex', n:'魔将图鉴' }],
-    t:'剑 匣 · 魔将图鉴', d:'以灵石温养法器；已遭遇魔将的技能说明书' },
+  /* ★ 剑匣已移到第一章第 2 节的 BEATS（见上）——
+     章末这一场留给「魔将图鉴」。否则同一件东西会被两条链各解锁一次，
+     剧情里也会重复播报一次「解锁了剑匣」。 */
+  { needCh:0, ks:[{ k:'bossdex', n:'魔将图鉴' }],
+    t:'魔将图鉴', d:'已遭遇魔将的技能说明书' },
   { needCh:1, ks:[{ k:'endless', n:'无尽妖潮' }, { k:'timed', n:'限时斩妖' }],
     t:'无尽妖潮 · 限时斩妖', d:'两种独立玩法：比撑得久、比斩得多' },
   { needCh:2, ks:[{ k:'boss', n:'魔将连战' }],
@@ -1979,6 +2030,12 @@ function unlockOf(k) {
   for (const u of UNLOCKS) for (const x of u.ks) if (x.k === k) return { u:u, k:x.k, n:x.n };
   return null;
 }
+/* 入口 k 属于哪个解锁节拍（返回 { i, b }：i 是 BEATS 下标，b 是节拍本身） */
+function beatOf(k) {
+  for (let i = 0; i < BEATS.length; i++)
+    for (const x of BEATS[i].ks) if (x.k === k) return { i:i, b:BEATS[i], k:x.k, n:x.n };
+  return null;
+}
 function chClearedOf(ch) {
   const a = ch * CH_SIZE, b = Math.min(LEVELS.length, a + CH_SIZE);
   for (let k = a; k < b; k++) if (!(save.levels[k] && save.levels[k].clear)) return false;
@@ -1986,10 +2043,16 @@ function chClearedOf(ch) {
 }
 /* 章节是否开启：第 0 章恒开；第 N 章需前一章全通 */
 function chapterOpen(ch) { return ch <= 0 ? true : chClearedOf(ch - 1); }
-/* 功能入口是否已解锁。
-   「已通关该章」是唯一判据 —— markStory 只在全通时才写，所以不需要额外看 save.story。
-   老存档（没有 save.story）也照常工作：他早就通关过的章，判定里天然成立。 */
+/* 功能入口是否已解锁。两条链都要查：
+   ① 先看是不是「节拍解锁」（BEATS）—— 这一类的判据是 save.story.beat[i]，
+      它在 endBattle 里、**演出弹出之前**就落盘了，所以跳过对话 / 中途刷新
+      都不会让解锁丢失（这是用户明确要求的「跳过也不会卡关」）；
+   ② 再看是不是「章解锁」（UNLOCKS）—— 判据是「该章已全通」。
+   老存档两条链都天然兼容：节拍有迁移补齐（见 storyState），章节点本来就是
+   从 save.levels 推出来的。 */
 function featureOpen(k) {
+  const b = beatOf(k);
+  if (b) return !!storyState().beat[b.i];
   const f = unlockOf(k);
   if (!f) return true;
   for (let i = 0; i <= f.u.needCh; i++) if (!chClearedOf(i)) return false;
@@ -2009,9 +2072,32 @@ function storyState() {
   if (!save.story || typeof save.story !== 'object') save.story = {};
   if (!save.story.ch) save.story.ch = {};
   if (!save.story.seen) save.story.seen = {};
+  if (!save.story.beat) save.story.beat = {};
   if (typeof save.story.guide !== 'number') save.story.guide = 0;
   if (!save.story.guideOff) save.story.guideOff = false;
   return save.story;
+}
+/* ★ 存档版本号：2 起有「解锁节拍」（BEATS）。
+   为什么必须用显式版本号，而不是「探测 story.beat 字段在不在」——
+   存档加载走的是 deepMerge(DEFAULT_SAVE, 原始档)，缺的字段会被默认值补齐。
+   于是合并之后，「老档里没有 beat」和「新档刚建、beat 还是空」长得**一模一样**，
+   靠字段探测根本分不开。版本号要在 merge **之前**读原始 JSON 才准。
+   （这不是假想问题：第一版就是靠探测 beat 字段，结果刚通关第 1 节的新档
+     被误判成老档 —— 那一节的解锁演出被当成「早就播过」而静默吞掉，
+     表现是「打完第 1 节什么都没发生」。） */
+const SAVE_VER = 2;
+/* 老档迁移：引入节拍之前的存档没有 beat 记录。若不管，
+   一个早已通关第一章的老玩家会遇到两件坏事 ——
+   ① 四条教学剧情从头糊脸；② 更糟的是装备栏/背包/功法/天机阁会**重新上锁**
+   （featureOpen 查 beat，而 beat 是空的），他攒了一包法宝却打不开行囊。
+   判据用「那一节已经通关过」：他打过那一节，就说明这条解锁早就该生效。
+   只在 loadSave 里对老档调一次，绝不在 storyState() 里偷做 —— 见上面版本号的说明。 */
+function migrateStoryBeats() {
+  const st = storyState();
+  for (let i = 0; i < BEATS.length; i++) {
+    const lv = BEATS[i].lv;
+    if (save.levels && save.levels[lv] && save.levels[lv].clear) st.beat[i] = 1;
+  }
 }
 /* 推进一章剧情：记「已看」，并把该章解锁的功能入口标成「还没点开过」——
    引导条就是靠这个 seen 标记，一步一步把玩家领去新功能。 */
@@ -2024,10 +2110,37 @@ function markStory(c) {
   const u = UNLOCKS.find(x => x.needCh === c);
   if (u) u.ks.forEach(x => { st.seen[x.k] = 0; });
 }
+/* 本次通关是否**新**触发一个解锁节拍（返回 BEATS 下标，无则 -1）。
+   ★ 只在「主线关卡 + 胜利」时问它 —— 副本（无尽/限时/魔将连战）没有节次概念，
+     在副本里弹一段「你捡到一只旧行囊」的教学剧情是错位的。 */
+function beatPending(lvIdx) {
+  const st = storyState();
+  for (let i = 0; i < BEATS.length; i++) {
+    if (st.beat[i]) continue;
+    if (BEATS[i].lv === lvIdx) return i;
+  }
+  return -1;
+}
+/* 推进一个解锁节拍：记「已播」，并把该节拍解锁的入口标成「还没点开过」。
+   ★ 调用时机是 endBattle 里、**演出弹出之前** —— 这样「跳过对话/中途刷新」
+     都不会丢解锁。演出只负责告知，不承担「授权」职责。 */
+function markBeat(i) {
+  const st = storyState();
+  st.beat[i] = 1;
+  st.guideOff = false;                    // 与 markStory 同口径：有新功能就把引导重新打开
+  const b = BEATS[i];
+  if (b) b.ks.forEach(x => { st.seen[x.k] = 0; });
+}
 function markSeen(k) { storyState().seen[k] = 1; }
-/* 刚解锁、但玩家还没点开过的入口（用来驱动「一步一步提示」） */
+/* 刚解锁、但玩家还没点开过的入口（用来驱动「一步一步提示」）。
+   ★ 两条链都要收：只看 UNLOCKS 的话，第一章那四个节拍解锁的功能
+     永远拿不到「新解锁了【法宝】，点开看看」这一步。 */
 function freshUnlocks() {
   const st = storyState(), out = [];
+  for (let i = 0; i < BEATS.length; i++) {
+    if (!st.beat[i]) continue;
+    BEATS[i].ks.forEach(x => { if (!st.seen[x.k]) out.push(x); });
+  }
   UNLOCKS.forEach(u => {
     if (!st.ch[u.needCh]) return;
     u.ks.forEach(x => { if (!st.seen[x.k]) out.push(x); });
@@ -2065,7 +2178,9 @@ const GUIDE_STEPS = [
 function guideStep() {
   const st = storyState();
   if (st.guideOff) return null;
-  if (!UNLOCKS.some(u => st.ch[u.needCh])) return null;   // 还没触发过任何解锁
+  /* 还没触发过任何解锁（节拍或章节）→ 不显示引导条。
+     两条链任一有记录就算「已经教过东西了」。 */
+  if (!BEATS.some((b, i) => st.beat[i]) && !UNLOCKS.some(u => st.ch[u.needCh])) return null;
   const fresh = freshUnlocks();
   if (fresh.length)
     return { k:'fresh', t:'新解锁了【' + fresh[0].n + '】，点开看看',
@@ -2176,6 +2291,23 @@ const DUNGEONS = [
    贴图负责「质地」（草/沙/焦/泥），tint 负责「色相」——
    两者分工，四章才既看得出地貌不同、又保得住 青白→冷钢蓝→紫电→幽冥 这条色彩线索。
    g0/g1/g2 仍然保留：贴图没加载出来时用来兜底画渐变。 */
+/* ---------------- 渲染画质档（2026-09-24） ----------------
+   用户性能口径：「帧率基本稳定在 70 帧，60 到 70；最高画质 100 帧」。
+   rk = 渲染倍率，1.0 = 屏幕原生分辨率（CSS 尺寸 × dpr）—— 最划算的一档，
+   再往上属于超采样，清晰度收益递减、像素数线性上涨。
+   ★ 档位**只影响渲染分辨率**，不改任何绘制算法、不改构图、不改玩法：
+     切档前后画面元素位置完全一致，只有锐度差别。 */
+const QUALITY = [
+  { k:'low',   n:'流畅', rk:0.70, d:'优先帧率，画面略软' },
+  { k:'std',   n:'标准', rk:1.00, d:'屏幕原生分辨率（推荐）' },
+  { k:'high',  n:'高清', rk:1.35, d:'超采样，边缘更锐' },
+  { k:'ultra', n:'极致', rk:1.80, d:'最强画质，需较强显卡' },
+];
+function qualityOf(k) {
+  for (const q of QUALITY) if (q.k === k) return q;
+  return QUALITY[1];
+}
+
 const BG_THEME = [
   { g0:'#f5f5e8', g1:'#e7edd8', g2:'#cfd7bd',
     line:'rgba(150,120,70,0.12)', ring:'rgba(168,124,58,0.20)',
@@ -2631,14 +2763,30 @@ function gearBonus() {
    锚点不是随手填的，两个约束同时满足：
      ① 逐项单增（越后期，高档权重越大、低档越小）→ 保证「随关卡提升」严格成立；
      ② 每一档的权重在**相邻两关之间**变化极小（<0.1），所以不会出现
-        「打完一关突然满屏橙装」的断层。 */
+        「打完一关突然满屏橙装」的断层。
+
+   ★ 2026-09-24 用户口径：「掉落率调到很低……最后那两个品阶，倒数第一个 5%、
+     倒数第二个 10%」。即**最稀有的两档要压到很低**，且顶档比次顶档更稀有：
+       仙品（倒数第二档）→ 10%
+       神品（倒数第一档）→ 5%
+     旧表的终章末关是 [2, 7, 18, 30, 26, 17] —— 仙 26%、神 17%，
+     到后期神品几乎三件出一件，稀有度彻底塌了。新表把这两档压到 10% / 5%，
+     腾出来的权重全部压进「灵品」，让**中间档承担主要产出**：
+     既保住了「越到后期越好」的上升感，又让仙/神重新变成值得高兴的事。
+     逐项检查（单增约束）：仙 0→0→3→7→10 ✓　神 0→0→1→2→5 ✓　灵 0→6→20→37→49 ✓
+     凡 72→32→12→5→3 ✓（低档持续下降） */
 const GEAR_TIER_ANCHOR = [
-  [72, 24,  4,  0,  0,  0],   // t=0.00　第 1 关：只有凡/良
-  [30, 40, 22,  7,  1,  0],   // t=0.25　第二章初：上品登场
-  [10, 26, 34, 22,  7,  1],   // t=0.50　第三章初：灵/仙品起量
-  [ 4, 14, 28, 30, 18,  6],   // t=0.75　第四章初
-  [ 2,  7, 18, 30, 26, 17],   // t=1.00　终章末关：神品不再稀见
+  [72, 24,  4,  0,  0, 0],   // t=0.00　第 1 关：凡/良为主，上品偶见（4%）
+  [32, 42, 20,  6,  0, 0],   // t=0.25　第二章初：上品起量，灵品登场
+  [12, 30, 34, 20,  3, 1],   // t=0.50　第三章初：灵品成主力，仙/神初现
+  [ 5, 16, 30, 37,  7, 2],   // t=0.75　第四章初
+  [ 3,  9, 24, 49, 10, 5],   // t=1.00　终章末关：灵 49% / 仙 10% / 神 5%
 ];
+/* ★ 第 1 关到底给不给上品（2026-09-24 澄清）：
+   锚点里上品权重是 4（≈4%），所以第 1 关是「凡/良为主 + 偶见上品」，
+   不是「只有凡/良」。这 4% 是有意留的 —— 新手第一关开出一件上品，
+   是「品质会随关卡提升」这条曲线的**起点证据**；真正要守住的下界是
+   「第 1 关不出灵品及以上」（灵/仙/神权重均为 0），测试按这条口径断言。 */
 function gearTierWeights(lvIdx, boss) {
   const span = Math.max(1, LEVELS.length - 1);
   const t = Math.max(0, Math.min(1, (lvIdx || 0) / span));
@@ -2648,8 +2796,11 @@ function gearTierWeights(lvIdx, boss) {
   const A = GEAR_TIER_ANCHOR[i0], B = GEAR_TIER_ANCHOR[i0 + 1];
   const W = A.map((v, i) => v + (B[i] - v) * fr);
   if (!boss) return W;
-  /* 魔将必掉，且品阶整体上抬：把权重往右推两档 */
-  return [W[0] * 0.15, W[1] * 0.4, W[2] * 0.8, W[3] * 1.4, W[4] * 2.2, W[5] * 4.5];
+  /* 魔将必掉，且品阶整体上抬：把权重往右推两档。
+     ★ 倍率 2026-09-24 一并收敛（旧值 2.2 / 4.5 太猛）：终章末关的魔将原本会掉出
+       仙 22% / 神 22%，把「神品」直接变成魔将的常规产出。现在 1.8 / 3.0，
+       魔将仍然是**最高效的高阶来源**，但不再破坏仙/神的稀有度。 */
+  return [W[0] * 0.15, W[1] * 0.45, W[2] * 0.85, W[3] * 1.35, W[4] * 1.8, W[5] * 3.0];
 }
 function rollGearTier(lvIdx, boss, rnd) {
   const W = gearTierWeights(lvIdx, boss);
@@ -2727,6 +2878,12 @@ function gearLabel(g) {
 
 /* ---------------- 存档 ---------------- */
 const DEFAULT_SAVE = {
+  /* ★ ver = 存档格式版本号，必须在存档里**真的写出来**，否则版本门形同虚设：
+     读档判定是 `parsed.ver >= SAVE_VER`，如果新档也不带 ver，
+     那么 parsed.ver 恒为 undefined、每次读档都判成「老档」——
+     迁移就会被反复执行（见 02_data.js 的 SAVE_VER 注释）。
+     （字段名用 ver，不是下面那个从没被读过的 v:1，别混。） */
+  ver: SAVE_VER,
   v:1, coins:0, xiuwei:0, realmIdx:0,
   name:'',
   char:{ cur:'main', owned:['main'] },        // 角色系统：当前出战 + 已结缘
@@ -2742,10 +2899,10 @@ const DEFAULT_SAVE = {
      ch   = 已推进过剧情的章（避免重打末节反复弹剧情）
      seen = 已点开过的新解锁入口（驱动底部引导条「一步一步提示」）
      guide / guideOff = 引导条当前步 / 玩家主动关掉 */
-  story:{ ch:{}, seen:{}, guide:0, guideOff:false },
+  story:{ ch:{}, seen:{}, beat:{}, guide:0, guideOff:false },
   items:{ potion:0, shield:0, rage:0 },
   signDate:'', signStreak:0, signTs:0,
-  opt:{ shake:true, fps:false, sfx:true, bgm:true },
+  opt:{ shake:true, fps:false, sfx:true, bgm:true, quality:'std' },
   stats:{ plays:0, kills:0, bestLevel:0, bestStar:0, coins:0, soldGear:0 },
 };
 let save = null;
@@ -2763,8 +2920,15 @@ function loadSave() {
   let raw = null;
   try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { raw = null; }
   if (!raw) { save = JSON.parse(JSON.stringify(DEFAULT_SAVE)); return; }
-  try { save = deepMerge(DEFAULT_SAVE, JSON.parse(raw)); }
-  catch (e) { save = JSON.parse(JSON.stringify(DEFAULT_SAVE)); }
+  let parsed = null;
+  try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+  save = parsed ? deepMerge(DEFAULT_SAVE, parsed)
+                : JSON.parse(JSON.stringify(DEFAULT_SAVE));
+  /* ★ 版本迁移的判定必须用 merge **之前**的原始数据（parsed），不能用 save：
+     deepMerge 会把缺失字段补成默认值，合并之后就再也看不出「这是老档」了
+     （默认值里 story.beat 是空对象，和老档补齐后的样子完全一致）。
+     详见 02_data.js 的 SAVE_VER 注释。 */
+  if (!parsed || !(parsed.ver >= SAVE_VER)) migrateStoryBeats();
   resyncRealm();
 }
 /* 境界迁移（2026-09-24 境界体系重排时必须做）
@@ -2780,6 +2944,9 @@ function resyncRealm() {
   save.realmIdx = i;
 }
 function saveGame() {
+  /* 落盘时把版本号盖上 —— 这份档以后读回来就不会再被判成老档。
+     放在 saveGame 而不是只放 DEFAULT_SAVE：任何来路的 save 对象写出去都是当前版本。 */
+  save.ver = SAVE_VER;
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
 }
 function wipeSave() {
@@ -2852,6 +3019,31 @@ function vigGradOf(T) {
   }
   return _vigC.g;
 }
+/* ★★ 暗角改用同尺寸预渲染贴图（2026-09-24 性能优化）★★
+   差分法实测（prof.py：把这一层换成纯色，看 drawBattle 总耗时掉多少）：
+   **radial 渐变的每帧全屏填充要 2.44ms** —— 是当前单笔最贵的绘制之一。
+   于是预渲染成一张「与画布物理尺寸完全相同」的贴图，每帧只做一次 1:1 drawImage。
+   ★ 关键：必须按**画布物理像素**渲染，不能画小图再放大。
+   早先踩过这个坑（见 vigGradOf 上面的注释）：小图放大要插值，纯软件光栅化下
+   反而比渐变更慢。同尺寸 blit 没有缩放采样，才是稳赚。
+   贴图按「画布尺寸 + 章节」双键缓存 —— 四章的暗角浓度不同，少一维就会残留上一章色调。 */
+let _vigT = { k:null, c:null };
+function vignetteTex(T) {
+  const k = cv.width + 'x' + cv.height + '#' + G.bg;
+  if (_vigT.k === k && _vigT.c) return _vigT.c;
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, cv.width); c.height = Math.max(1, cv.height);
+  const g2 = c.getContext('2d');
+  /* 在物理像素画布上按逻辑坐标系作图：先把自己的变换设成 rkX/rkY，
+     这样下面的 VW/VH 坐标和主画布语义一致，暗角形状不会跑偏。 */
+  g2.setTransform(c.width / VW, 0, 0, c.height / VH, 0, 0);
+  const rg = g2.createRadialGradient(VW/2, VH/2, VH*0.36, VW/2, VH/2, VH*0.78);
+  rg.addColorStop(0, 'rgba(0,0,0,0)');
+  rg.addColorStop(1, (T && T.vig) || 'rgba(30,22,12,0.4)');
+  g2.fillStyle = rg; g2.fillRect(0, 0, VW, VH);
+  _vigT = { k:k, c:c };
+  return c;
+}
 /* 地面辉光贴图：原先每个辉光每帧新建一次 radialGradient（同屏十几个 = 每帧十几次），
    改为预渲染一张，之后只 drawImage + globalAlpha —— 这是帧率提升最明显的一处。
    ★ 现在按章分色（key）：云海是灵气青、剑冢是冷白、天劫是紫电、幽冥是鬼火蓝。
@@ -2916,6 +3108,24 @@ function hudGrad(key, x0, x1, c0, c1) {
   }
   return _hudG[k];
 }
+/* ★★ 渲染分辨率（2026-09-24 性能修复）★★
+   旧写法 cv.width = VW * dpr 把「逻辑视口」当成了「CSS 视口」——
+   但 VW 的基准是 750 宽（为了套住各种机型），在 430px 宽的屏幕上逻辑视口
+   已经是 CSS 视口的 1.88 倍，再乘 dpr 2 → 画布面积是屏幕的 **3.77 倍**：
+   430x932@dpr2 要填 1620x3512 = 570 万像素，实测只有 **17 FPS**（更新只占
+   0.03ms，全部时间花在填充上）。
+   正确口径是「画布 = CSS 尺寸 × dpr」= 屏幕原生分辨率，像素数降 3.55 倍
+   （实测 67 FPS）；而且因为不再超采样放大，清晰度一点没丢。
+   再给一个总像素上限：4K 屏按原生算是 830 万像素，Canvas2D 顶不住 —— 超过
+   上限就等比缩到上限（等比缩放不改构图，只是略软，比掉帧划算）。 */
+const RENDER_PX_MAX = 6.0e6;      // 渲染像素硬上限（≈ 2160x2778，足够 1080p@2x）
+/* ★ 渲染倍率 renderK：以「屏幕原生分辨率」为 1.0 的画质档。
+   1.0 = 原生（实测 430x932@dpr2 下 200 FPS —— 「稳 60-70 帧」有大量余量）。
+   设置里可上到 1.8（超采样，边缘更锐）或下到 0.7。
+   下限同时用于「保底降级」：真机若连原生都吃力，主循环会自动往下调（见 05_boot.js）。 */
+let renderK = 1;
+const RENDER_K_MIN = 0.7;
+let rkX = 1, rkY = 1;             // 逻辑坐标 → 画布物理像素的缩放（frame 用它设变换）
 function fitScreen() {
   const de = document.documentElement;
   const w = Math.max(1, de.clientWidth  || innerWidth  || 1);
@@ -2925,15 +3135,27 @@ function fitScreen() {
   const lh = ar <= baseAR ? 750 / ar : 1334;
   VW = Math.round(lw * VIEW_K);
   VH = Math.round(lh * VIEW_K);
-  cv.width  = Math.round(VW * dpr);
-  cv.height = Math.round(VH * dpr);
+  let rw = w * dpr * renderK, rh = h * dpr * renderK;
+  const px = rw * rh;
+  if (px > RENDER_PX_MAX) { const s = Math.sqrt(RENDER_PX_MAX / px); rw *= s; rh *= s; }
+  cv.width  = Math.round(rw);
+  cv.height = Math.round(rh);
+  rkX = cv.width / VW; rkY = cv.height / VH;
   cv.style.width  = '100%';                          // 铺满视口，连 1px 黑边都不留
   cv.style.height = '100%';
-  _gndC.k = null; _vigC.k = null;                    // 视口变了 → 缓存的渐变作废
+  _gndC.k = null; _vigC.k = null; _vigT.k = null;    // 视口变了 → 缓存的渐变/贴图作废
 }
 addEventListener('resize', fitScreen);
 addEventListener('orientationchange', () => setTimeout(fitScreen, 260));
 if (window.visualViewport) visualViewport.addEventListener('resize', fitScreen);
+/* 按存档里的画质档重建画布。boot() 里 loadSave() 之后调用一次；
+   玩家在设置里切档时也调它。切档会把 _lowN 清零 —— 否则刚手动调到高清、
+   正赶上一次保底降级，玩家的选择会被立刻推翻。 */
+function applyQuality() {
+  renderK = qualityOf(save.opt.quality).rk;
+  _lowN = 0;
+  fitScreen();
+}
 fitScreen();
 
 /* ---------------- 输入：键盘 + 触屏摇杆 ---------------- */
@@ -3840,15 +4062,17 @@ function spawnPlan(t) {
 /* 本波全歼：要么进下一波的待机，要么召魔将，要么通关 */
 /* ---------------- 装备掉落 ---------------- */
 /* 掉落是装备系统唯一的**入口** —— 没有掉落，整套装备就只是个展示柜。
-   参数刻意保守（每波 35%）：
-     40 关 × 平均 6 波 ≈ 240 个波次，35% 就已经约 84 件，
-     远超「六件穿戴 + 背包慢慢消化」的节奏。
-   真正该稀缺的是**品阶**，不是件数 —— 所以掉率给得松，品阶权重给得紧
-   （见 07_gear.js 的 gearTierWeights：第一关基本只有凡/良品，第 40 关才常见紫橙）。 */
-/* 掉落用的两件事都在这里收口：
-   ① 进度索引 —— 主线看当前关号（品质随关卡连续提升），副本没有关号，
-      退回到「主线最高进度」，这样在副本里刷装备也符合「越后期越好」的直觉；
-   ② 本局掉落清单 G.wonGear —— 结算前那张「获得物品」面板的数据源。 */
+
+   ★ 2026-09-24 用户口径：「掉落率应该调到很低」。
+   旧值每波 35%（外加关末必掉），40 关 × 平均 6 波 ≈ 240 个波次 → 一局能掉
+   八十多件，装备变成「捡不完的杂货」，掉宝这件事本身失去了分量。
+   现在压到**每波 8%**：一节 7 波里通常只在中途掉 0~1 件，
+   真正稳定的一次收获落在**本节最后一波**（必掉，见 onWaveClear 的 force 参数）——
+   这也正是玩家会把「本局掉了什么」当成一关收尾仪式的原因。
+
+   设计分工没变，只是比例重排：
+     件数由「每波 8% + 关末必掉」控制（稀缺）；
+     品阶由 gearTierWeights 控制（更稀缺，仙 10% / 神 5% 封顶）。 */
 function gearProgressIdx() {
   if (G && G.mode === 'level') return clamp(G.lvIdx, 0, LEVELS.length - 1);
   return clamp(save.stats.bestLevel || 0, 0, LEVELS.length - 1);
@@ -3859,7 +4083,7 @@ function gainGear(g) {
   return g;
 }
 function tryDropGear(force) {
-  if (!force && Math.random() > 0.35) return null;
+  if (!force && Math.random() > 0.08) return null;
   const g = gainGear(addGear(dropGear(gearProgressIdx(), false)));
   const T = gearTierOf(g);
   toast('拾得 ' + T.n + '　' + g.nm + '（' + gearSlotOf(g.slot).n + '）　强度 ' + gearScore(g), T.c);
@@ -3910,26 +4134,50 @@ function onWaveClear() {
    ★ 为什么位置贴着世界坐标：pattern 跟随 ctx 的变换（drawWorld 里已经
      translate(-cam.x,-cam.y)），所以地面天然跟着相机走，不需要额外补偿。 */
 const GROUND_TILE = 1400;
+/* ★★ 把章节色调层烤进贴图（2026-09-24 性能优化）★★
+   原先的顺序是「pattern 平铺一次全屏 + 再叠一层全屏 tint」，也就是地面上每帧
+   要填两次全屏。但 tint 是**均匀纯色**，与平铺是可交换的 —— 于是先把它烤进一张
+   离屏副本，之后一次填充搞定，肉眼完全一致。
+   （原先 tint 单独成层是为了「贴图管质地、tint 管色相」的分工，烤进去分工照旧，
+     只是把合成时机从每帧挪到了一次。）
+   ★ 同时修一个既有 bug：旧代码在贴图还没解码完时会把 p=null 写进缓存，而
+   _gndPat.k 已经被置成该章，之后永不再尝试 —— 于是那一章的地面会一直退回算法
+   渐变，直到玩家换章再换回来。现在「没准备好」一律**不写缓存**，下一帧自然重试。 */
+const _gndTint = {};          // 每章一张「贴图 + 色调」的离屏副本
+function groundTinted(bg) {
+  if (_gndTint[bg]) return _gndTint[bg];
+  const img = IMG['ground_' + (bg + 1)];
+  if (!img || !img.naturalWidth) return null;       // 还没解码完 → 不缓存，下次重试
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g2 = c.getContext('2d');
+  try {
+    g2.drawImage(img, 0, 0);
+    const tint = (BG_THEME[bg] || {}).tint;
+    if (tint) { g2.fillStyle = tint; g2.fillRect(0, 0, c.width, c.height); }
+  } catch (e) { return null; }
+  _gndTint[bg] = c;
+  return c;
+}
 let _gndPat = { k:null, p:null };
 function groundPatOf() {
   const k = '' + G.bg;
-  if (_gndPat.k !== k) {
-    const img = IMG['ground_' + (G.bg + 1)];
-    let p = null;
-    if (img && img.naturalWidth) {
-      try {
-        p = ctx.createPattern(img, 'repeat');
-        /* setTransform 让贴图放大到 GROUND_TILE 一个单元。
-           旧浏览器没有 DOMMatrix 时退化为 1:1 平铺 —— 图形照样出，只是重复感强些。 */
-        if (p && p.setTransform && typeof DOMMatrix === 'function') {
-          const s = GROUND_TILE / img.naturalWidth;
-          p.setTransform(new DOMMatrix([s, 0, 0, s, 0, 0]));
-        }
-      } catch (e) { p = null; }
+  if (_gndPat.k === k) return _gndPat.p;
+  const tex = groundTinted(G.bg);
+  if (!tex) return null;                            // 贴图没就绪 → 走渐变兜底，且不写缓存
+  let p = null;
+  try {
+    p = ctx.createPattern(tex, 'repeat');
+    /* setTransform 让贴图放大到 GROUND_TILE 一个单元。
+       旧浏览器没有 DOMMatrix 时退化为 1:1 平铺 —— 图形照样出，只是重复感强些。 */
+    if (p && p.setTransform && typeof DOMMatrix === 'function') {
+      const s = GROUND_TILE / tex.width;
+      p.setTransform(new DOMMatrix([s, 0, 0, s, 0, 0]));
     }
-    _gndPat = { k:k, p:p };
-  }
-  return _gndPat.p;
+  } catch (e) { p = null; }
+  if (!p) return null;                              // 建 pattern 失败 → 同样不写缓存
+  _gndPat = { k:k, p:p };
+  return p;
 }
 
 /* ---------------- 攻击 ---------------- */
@@ -4806,14 +5054,18 @@ function drawWorld() {
   const fx1 = Math.min(WORLD, vr), fy1 = Math.min(WORLD, vb);
   if (fx1 > fx0 && fy1 > fy0) {
     const pat = groundPatOf();
-    ctx.fillStyle = pat || groundGradOf(T);
-    ctx.fillRect(fx0, fy0, fx1 - fx0, fy1 - fy0);
-    /* 章节色调：贴图负责「质地」，色相仍由 BG_THEME 管。
-       没有这一层，四章地面就只剩「草/沙/焦/泥」的材质差，
-       丢掉原来的 青白 → 冷钢蓝 → 紫电 → 幽冥 这条色彩线索。 */
-    if (pat && T.tint) {
-      ctx.fillStyle = T.tint;
+    if (pat) {
+      /* 贴图这条路：章节色调已经烤在贴图里了，一次填充到底（见 groundTinted） */
+      ctx.fillStyle = pat;
       ctx.fillRect(fx0, fy0, fx1 - fx0, fy1 - fy0);
+    } else {
+      /* 兜底这条路（贴图尚未解码）：渐变的色相本来就是章节色，再补一层 tint 才和贴图路径观感一致 */
+      ctx.fillStyle = groundGradOf(T);
+      ctx.fillRect(fx0, fy0, fx1 - fx0, fy1 - fy0);
+      if (T.tint) {
+        ctx.fillStyle = T.tint;
+        ctx.fillRect(fx0, fy0, fx1 - fx0, fy1 - fy0);
+      }
     }
   }
 
@@ -5928,7 +6180,8 @@ function drawBattle() {
     ctx.fillRect(0, 0, VW, VH);
   }
   drawHUD();
-  ctx.fillStyle = vigGradOf(BG_THEME[G.bg] || BG_THEME[0]); ctx.fillRect(0, 0, VW, VH);
+  /* 暗角：预渲染贴图 1:1 blit（原来是每帧一次全屏 radial 渐变 = 2.44ms，见 vignetteTex） */
+  ctx.drawImage(vignetteTex(BG_THEME[G.bg] || BG_THEME[0]), 0, 0, VW, VH);
   /* 技能横幅与开战倒计时压在最上层，任何情况下都完整可见 */
   drawSkillPops();
   drawCountdown();
@@ -6739,17 +6992,17 @@ const el = {};
  'sc-name','sc-realm','sc-boss','title-cover','title-bg',
  'ov-levelup','ov-pause','ov-incense','lvup-choices','lobby-grid','lb-face','lb-name','lb-realm','lb-acct',
  'ov-loot','loot-sub','loot-sub2','loot-list','btn-lootok',
- 'ov-story','st-sub','st-body','st-unlock','btn-storyok',
+ 'ov-story','st-title','st-sub','st-body','st-unlock','btn-storyok','btn-storyskip',
  'guide-bar','gb-tx','gb-go','gb-x',
  'lb-xiu-bar','lb-xiu-txt','lv-quick','rm-cur','rm-list','bd-cnt','bd-boss-list',
  'lb-coin','lb-best','lv-list','lv-coin','eq-list','eq-coin','sk-list','cx-list','cx-cnt','sh-list','sh-coin',
  'gr-power','gr-slots','gr-detail','gr-bagnet','gr-bagn','gr-sortbtn',
  'bd-list','rs-title','rs-body','pause-sub','hud-pause','dom-toast',
- 'inc-sub','inc-tiers','inc-today','name-input','set-name-txt','set-bgm-txt',
+ 'inc-sub','inc-tiers','inc-today','name-input','set-name-txt','set-bgm-txt','set-q-txt',
  'ch-list','ch-cnt','ch-cur-nm','ch-cur-role','ch-cur-face',
  'lb-char','lbch-face','lbch-nm','lbch-role','lbch-realm','lbch-ab','lbch-lock',
  'btn-enter','btn-pause','btn-resume','btn-restart','btn-quit','btn-again','btn-tolobby','btn-next',
- 'btn-shake','btn-fps','btn-wipe','btn-rename','btn-name-roll','btn-name-go','btn-name-back',
+ 'btn-shake','btn-fps','btn-quality','btn-wipe','btn-rename','btn-name-roll','btn-name-go','btn-name-back',
  'btn-sfx','btn-bgm',
  'btn-incense','btn-incense-close'
 ].forEach(k => { el[k] = $id(k); });
@@ -6860,8 +7113,14 @@ function navThumbHTML(n) {
   if (s) return '<span class="nav-th"><img src="' + s + '" alt=""></span>';
   return '<span class="nav-th ic-only">' + icOf(n.k, 26) + '</span>';
 }
-/* 未解锁入口的副标题：直接说清「还差什么」，比一句「未解锁」有用得多 */
+/* 未解锁入口的副标题：直接说清「还差什么」，比一句「未解锁」有用得多。
+   两条解锁链的「还差什么」不一样：节拍是「通关第 N 节」，章节点是「通关第 N 章」。 */
 function lockHint(k) {
+  const b = beatOf(k);
+  if (b) {
+    const L = LEVELS[b.b.lv] || {};
+    return '通关「' + (L.n || ('第 ' + (b.b.lv + 1) + ' 节')) + '」后开启';
+  }
   const f = unlockOf(k);
   if (!f) return '未开启';
   return '通关 ' + CHAPTERS[f.u.needCh].n.split(' · ')[0] + ' 后开启';
@@ -7624,6 +7883,14 @@ function renderSet() {
   el['btn-shake'].classList.toggle('gray', !save.opt.shake);
   el['btn-fps'].textContent = save.opt.fps ? '开' : '关';
   el['btn-fps'].classList.toggle('gray', !save.opt.fps);
+  /* 渲染画质：按钮显示档名，副标题说清这一档换来什么 ——
+     只写「流畅/标准/高清」玩家不知道差别在哪，写「超采样，边缘更锐」才敢点。 */
+  if (el['btn-quality']) {
+    const q = qualityOf(save.opt.quality);
+    el['btn-quality'].textContent = q.n;
+    el['btn-quality'].classList.toggle('gray', q.k === 'low');
+    if (el['set-q-txt']) el['set-q-txt'].textContent = q.n + ' · ' + q.d;
+  }
   if (el['btn-sfx']) {
     el['btn-sfx'].textContent = save.opt.sfx ? '开' : '关';
     el['btn-sfx'].classList.toggle('gray', !save.opt.sfx);
@@ -7831,20 +8098,23 @@ function togglePause() { setPause(!G.paused); }
      打完章节末节 → 「获得物品」确认 → 结算页（★ 无「继续下一关」）
        → 「返回关卡闯关」 → 「剧情推进」确认 → 大厅 + 底部引导条一步一步教
    ========================================================================= */
-let storyCh = -1;                     // 本次结算触发的剧情章（-1 = 无）
+let storyCh = -1;                     // 当前正在播的章节剧情章号（-1 = 无）
+/* 待播演出队列。元素形如 { kind:'beat', i }（解锁节拍）或 { kind:'ch', c }（章末大剧情） */
+let storyQueue = [];
 
-function openStory(c) {
-  storyCh = c;
-  const S = CH_STORY[c] || {}, CH = CHAPTERS[c] || {};
-  el['st-sub'].textContent = CH.n || '';
-  el['st-body'].textContent = S.body || '';
-  /* 「本章解锁」用 NAV 的原卡片缩略图 —— 玩家在剧情里看到的图标，
-     必须就是他回到大厅一眼能认出的那个图标，否则「解锁」和「入口」对不上号。 */
-  const u = UNLOCKS.find(x => x.needCh === c);
+/* 统一演出面板：章节大剧情与解锁节拍共用一套 UI。
+   ★ 为什么共用：两者结构完全一样 —— 一段正文 + 一张「解锁了什么」清单 +
+     一句「接下来做什么」。分两套 DOM 只会让以后改文案要改两处、还容易走样。 */
+function storyPanel(title, sub, body, ks, tail) {
+  if (el['st-title']) el['st-title'].textContent = title;
+  el['st-sub'].textContent = sub || '';
+  el['st-body'].textContent = body || '';
   let h = '';
-  if (u) {
-    h += '<h4>本 章 解 锁</h4>';
-    u.ks.forEach(x => {
+  if (ks && ks.length) {
+    h += '<h4>本 次 解 锁</h4>';
+    ks.forEach(x => {
+      /* 缩略图走 NAV 的同一套取图逻辑 —— 玩家在剧情里看到的图标，
+         必须就是他回到大厅一眼能认出的那个图标，否则「解锁」和「入口」对不上号。 */
       const n = NAV.find(y => y.k === x.k);
       h += '<div class="st-u">' + (n ? navThumbHTML(n) : '') +
         '<div style="flex:1;min-width:0"><b>' + x.n + '</b>' +
@@ -7853,24 +8123,65 @@ function openStory(c) {
     h += '<h4 style="margin-top:10px">接 下 来</h4>' +
       '<div class="st-u"><div style="flex:1;min-width:0">' +
       '<b style="font-size:12.5px;color:#eae2d0;font-weight:400;line-height:1.75">' +
-      '回到关卡界面后，最底部会一步一步提示你 —— 先穿装备、再强化法宝，' +
-      '上手了再挑下一节。</b></div></div>';
+      (tail || '') + '</b></div></div>';
   }
   el['st-unlock'].innerHTML = h;
   el['ov-story'].classList.add('on');
   SFX.story();
 }
+const STORY_TAIL = '回到关卡界面后，最底部会一步一步提示你 —— 先穿装备、再强化法宝，' +
+                   '上手了再挑下一节。';
+/* 章末大剧情（整章首次全通） */
+function openStory(c) {
+  storyCh = c;
+  const S = CH_STORY[c] || {}, CH = CHAPTERS[c] || {};
+  const u = UNLOCKS.find(x => x.needCh === c);
+  storyPanel('剧 情 推 进', CH.n || '', S.body || '', u ? u.ks : null, STORY_TAIL);
+}
+/* 解锁节拍（第一章第 1~4 节）：标题用「奇遇」把它和章末大剧情区分开 ——
+   一个是路上捡到东西，一个是章节落幕，玩家的心理预期本来就不一样。 */
+function openBeat(i) {
+  const B = BEATS[i] || {};
+  const L = LEVELS[B.lv] || {};
+  storyPanel('奇 遇 · 解 锁', (B.t || '') + '　·　' + (L.n || ''),
+             B.body || '', B.ks, STORY_TAIL);
+}
+/* 把本次结算该播的演出排进队列，并**立刻**落盘解锁状态。
+   ★ 落盘发生在排队时、不是播完之后 —— 这是「跳过对话也不卡关」的实现根据：
+     玩家点到一半退出、刷新、甚至直接关页面，权限都已经生效了。 */
+function queueStories(lvIdx) {
+  storyQueue.length = 0;
+  if (G.mode === 'level') {
+    const b = beatPending(lvIdx);
+    if (b >= 0) { markBeat(b); storyQueue.push({ kind:'beat', i:b }); }
+  }
+  const c = storyPending();
+  if (c >= 0) { markStory(c); storyQueue.push({ kind:'ch', c:c }); }
+  return storyQueue.length;
+}
+/* 播下一场；队列空了返回 false，调用方据此决定「回大厅」还是「继续等」 */
+function playNextStory() {
+  if (!storyQueue.length) return false;
+  const s = storyQueue.shift();
+  if (s.kind === 'beat') openBeat(s.i); else openStory(s.c);
+  return true;
+}
 function confirmStory() {
   storyCh = -1;
   el['ov-story'].classList.remove('on');
-  /* ★ 出口落在**大厅**（点「开始游戏」进去的那个界面），不是标题页。
-     大厅顶部就是关卡列表（lv-quick），所以「返回关卡闯关」这个动作在同一屏就能完成。 */
+  /* ★ 队列还有下一场就接着播，不急着回大厅 ——
+     第一章第 1 节之后紧跟着第 2 节的节拍是常事（补档时更是一次好几场），
+     中间插一次「回大厅再点进去」会让教学节奏碎掉。 */
+  if (playNextStory()) return;
   renderLobbyGrid(); refreshLobby();
   showScreen('sc-lobby');
   const lv = el['lv-quick'];
   if (lv && lv.scrollIntoView) { try { lv.scrollIntoView({ block:'start' }); } catch (e) {} }
   renderGuide();
 }
+/* 跳过：语义与「确认」完全一致 —— 因为解锁早在排队时就落盘了，
+   跳过只是不看字，不承担任何授权职责。用户明确要求「跳过也不会卡关」。 */
+function skipStory() { confirmStory(); }
 
 /* ---------------- 底部引导条 ----------------
    renderGuide() 可以在任何地方放心调用（refreshLobby 每次都会叫它）：
@@ -7995,6 +8306,7 @@ function endBattle(win) {
   let coinGain = G.coins, xiuGain = Math.floor(G.xiuwei), stars = 0;
   let chBonus = 0, chCleared = '', failAid = 0;
   storyCh = -1;                       // 每次结算重新判定（只有「关卡 + 胜利」分支会重新赋值）
+  storyQueue.length = 0;              // 待播演出同样每次结算重排（见 queueStories）
 
   if (G.mode === 'level') {
     if (win) {
@@ -8020,12 +8332,13 @@ function endBattle(win) {
           chCleared = CHAPTERS[ch].n;
         }
       }
-      /* ★ 剧情推进判定：本章是否**首次**全通（storyPending 只认「已达成但未推进」的章）。
-         放在这里而不是结算页渲染之后 —— 下面的按钮分流要用到 storyCh。
-         注意 markStory 要在这里就调：玩家可能在结算页直接杀掉进程，
-         那时「已推进」也必须已经落盘，否则下次重打末节会再弹一遍剧情。 */
-      storyCh = storyPending();
-      if (storyCh >= 0) markStory(storyCh);
+      /* ★ 演出排队：本关可能**同时**触发「解锁节拍」（第一章第 1~4 节）与
+         「章末大剧情」（整章首次全通）。两条都排进队列、按顺序播 ——
+         这也顺手覆盖了补档 / 跳关 / 老存档迁移这类「一次触发两条」的场景。
+         ★ markBeat / markStory 在**排队时就落盘**（在 queueStories 内部），
+         不等玩家看完：于是跳过对话、中途刷新、直接杀进程都不会丢解锁，
+         这就是用户要求的「跳过也不会卡关」的实现根据。 */
+      queueStories(G.lvIdx);
     } else {
       xiuGain = Math.floor(xiuGain * 0.6);
       coinGain = Math.floor(coinGain * 0.7);
@@ -8128,35 +8441,47 @@ function endBattle(win) {
   }
 
   /* —— 胜负分流：赢则以「继续下一关」为主行动 ——
-     ★ 例外：本次通关**推进了剧情**（storyCh ≥ 0）时，「继续下一关」一律隐藏。
+     ★ 例外：本次通关**有待播演出**（storyQueue 非空）时，「继续下一关」一律隐藏。
        用户口径：「弹出了主界面之后不能继续下一关，只能返回关卡闯关界面」。
        理由是设计而非限制：新章刚开，玩家此刻该做的是回去看新解锁的功能，
        而不是一头撞进更硬的怪里（血量为 ×MOB_HP_MUL，难度是真上去了）。
        「再刷本关」保留 —— 重打不是「下一关」，且刷星是正常需求。 */
   const canNext = !!(win && G.mode === 'level' && G.lvIdx + 1 < LEVELS.length);
-  const gateStory = storyCh >= 0;
+  const gateStory = storyQueue.length > 0;
   el['btn-next'].style.display = (canNext && !gateStory) ? 'block' : 'none';
   el['btn-next'].disabled = false;
   el['btn-again'].textContent = (canNext && !gateStory) ? '再 刷 本 关' : (win ? '再 来 一 局' : '再 战 一 局');
   el['btn-tolobby'].textContent = gateStory ? '返 回 关 卡 闯 关' : '返 回 大 厅';
   if (gateStory) {
-    const CH = CHAPTERS[storyCh] || {};
+    /* 提示语要覆盖两种演出，且不能写死：
+       · 队列里有「章末大剧情」→ 报本章已通；
+       · 只有「解锁节拍」→ 报路上有奇遇（这是第一章第 1~4 节的常态）；
+       · 两条都有（补档场景）→ 报章名，因为那是更重的一场。 */
+    const cho = storyQueue.filter(s => s.kind === 'ch')[0];
+    const CH = cho ? (CHAPTERS[cho.c] || {}) : {};
+    const head = cho
+      ? ('✦ 剧情推进 · ' + (CH.n || '') + '<br>本章已通。')
+      : ('✦ 路上有奇遇 · 待你查看<br>');
+    const more = storyQueue.length > 1 ? ('此行共 ' + storyQueue.length + ' 段经历，') : '';
     el['rs-body'].insertAdjacentHTML('afterbegin',
       '<div class="hint" style="color:#ffd96b;text-align:center;line-height:1.9;' +
       'padding:9px 10px;border-radius:9px;background:rgba(190,160,92,.12);' +
       'border:1px solid var(--line);margin-bottom:11px">' +
-      '✦ 剧情推进 · ' + (CH.n || '') + '<br>' +
-      '本章已通。点下方「返回关卡闯关」继续 →</div>');
+      head + more + '点下方「返回关卡闯关」继续 →</div>');
   }
 
   el['rs-body'].innerHTML = h;
   refreshLobby();
-  /* ★ 结算前先弹「获得物品」（用户口径 2026-09-24）。
-     触发口径：通关关卡时**必弹**（这是「关卡结束」的固定仪式）；
-     平时只有真打到东西才弹 —— 输掉且空手时多一屏确认纯属噪音。
+  /* ★ 结算前先弹「获得物品」（用户口径 2026-09-24 二次收口）。
+     触发口径：**只有打完整节的最后一波（通关）才弹** ——
+     用户原话：「只有打完这一节的最后一波之后，它会出现一个本局掉落什么什么」。
+     于是这一屏从「随手弹的收获提示」变成了**一节的收尾仪式**：
+     中途掉的零星装备仍然照常入包（addGear 在掉落那一刻就落袋了），
+     只是不再打断战斗节奏；到关末一次性给你看全，仪式感才立得住。
+     输掉时不弹 —— 空手看一屏确认纯属噪音，有收获也会在结算页里带到。
      注意此时 G.scene 还是 'battle'，所以不能直接 showScreen，要到 confirmLoot 里再换屏。 */
   const loot = (G.wonGear || []).slice();
-  if ((win && G.mode === 'level') || loot.length) { openLoot(loot); return; }
+  if (win && G.mode === 'level') { openLoot(loot); return; }
   showScreen('sc-result');
 }
 
@@ -8191,6 +8516,9 @@ document.addEventListener('click', function (e) {
   else if (act === 'gearsell') gearDoSell();
   else if (act === 'gearsort') gearToggleSort();
   else if (act === 'storyok')  confirmStory();
+  /* 「跳过」与「确认」走同一条路径：解锁在排队时就已落盘，跳过只是不看字。
+     这样玩家永远不可能因为跳对话而丢解锁（用户明确要求过这一点）。 */
+  else if (act === 'storyskip') skipStory();
   else if (act === 'lootok')   confirmLoot();
   else if (act === 'guidego')  guideGo();
   else if (act === 'guideoff') guideOff();
@@ -8207,6 +8535,15 @@ document.addEventListener('click', function (e) {
   }
   else if (act === 'shake')   { save.opt.shake = !save.opt.shake; saveGame(); renderSet(); }
   else if (act === 'fps')     { save.opt.fps = !save.opt.fps; saveGame(); renderSet(); }
+  else if (act === 'quality') {
+    /* 四档循环切换。切完立刻重建画布（applyQuality）并落盘 ——
+       不落盘的话，下次启动会回到标准档，玩家会以为设置没生效。 */
+    const cur = qualityOf(save.opt.quality);
+    const i = QUALITY.indexOf(cur);
+    const nx = QUALITY[(i + 1) % QUALITY.length];
+    save.opt.quality = nx.k; saveGame(); applyQuality(); renderSet();
+    domToast('渲染画质 · ' + nx.n + ' —— ' + nx.d);
+  }
   else if (act === 'sfx') {
     save.opt.sfx = !save.opt.sfx; saveGame(); renderSet();
     if (save.opt.sfx) { resumeAudio(); SFX.open(); domToast('音效已开启'); }
@@ -8316,13 +8653,16 @@ function drawFpsMark() {
 }
 
 /* ---------------- 主循环 ---------------- */
-let last = performance.now(), fFrames = 0, fT = 0;
+let last = performance.now(), fFrames = 0, fT = 0, _lowN = 0;
 function frame(now) {
   let dt = (now - last) / 1000; last = now;
   if (!(dt > 0)) dt = 1 / 60;
   dt = Math.min(dt, 1 / 25);
 
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  /* ★ 变换用 rkX/rkY（画布物理像素 / 逻辑视口），不再写死 dpr ——
+     两者在全屏时数值接近，但在「像素上限被触发」或「画质档位不是原生」时
+     并不相等；走 fitScreen 算出的真实比值，逻辑坐标系才始终是 VW×VH。 */
+  ctx.setTransform(rkX, 0, 0, rkY, 0, 0);
   ctx.clearRect(0, 0, VW, VH);
 
   if (G.scene === 'battle') {
@@ -8334,7 +8674,20 @@ function frame(now) {
   }
 
   fFrames++; fT += dt;
-  if (fT >= 0.5) { G.fpsNow = Math.round(fFrames / fT); fFrames = 0; fT = 0; }
+  if (fT >= 0.5) {
+    G.fpsNow = Math.round(fFrames / fT); fFrames = 0; fT = 0;
+    /* ★ 保底降级：真机跑不动时自动降渲染倍率，而不是放任掉帧。
+       只在**连续两个采样窗**（约 1 秒）都偏低时才动手 —— 开场加载、切场景、
+       结算那一瞬都会掉到 50 以下，一次低就降会让画质无故掉档。
+       只降不升：升回来必然在临界点来回抖（升→掉帧→降→有余量→又升…）。 */
+    if (G.fpsNow > 0 && G.fpsNow < 50 && renderK > RENDER_K_MIN) {
+      if (++_lowN >= 2) {
+        _lowN = 0;
+        renderK = Math.max(RENDER_K_MIN, renderK * 0.85);
+        fitScreen();
+      }
+    } else _lowN = 0;
+  }
   if (save.opt.fps) drawFpsMark();
 
   requestAnimationFrame(frame);
@@ -8343,6 +8696,7 @@ function frame(now) {
 /* ---------------- 启动 ---------------- */
 function boot() {
   loadSave();
+  applyQuality();          // 存档里的画质档要先生效：画布尺寸由它决定，晚设会闪一下
   loadAssets();
   resetHero();
   P = makeParams();
@@ -8382,10 +8736,11 @@ function boot() {
     beginBattle(lastBegin.mode, lastBegin.idx);
   });
   el['btn-tolobby'].addEventListener('click', () => {
-    /* ★ 本次通关推进了剧情 → 先过「剧情推进」面板，再回大厅。
+    /* ★ 本次通关若有待播演出（解锁节拍 / 章末大剧情）→ 先把队列播完，再回大厅。
        用户口径：「弹出了主界面之后不能继续下一关，只能返回关卡闯关界面」——
-       这个按钮就是那句话里的「返回」，点是之后出剧情、再落回大厅。 */
-    if (storyCh >= 0) { openStory(storyCh); return; }
+       这个按钮就是那句话里的「返回」，点是之后出剧情、再落回大厅。
+       用队列而不是单个变量：第一章第 1~4 节一节一个解锁节拍，补档时可能一次排好几场。 */
+    if (playNextStory()) return;
     refreshLobby(); renderLobbyGrid(); showScreen('sc-lobby');
   });
   /* 道号：踏入秘境 / 随机 / 回车提交 */
