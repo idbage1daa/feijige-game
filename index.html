@@ -1040,9 +1040,9 @@ button{font-family:inherit;}
     <div class="pause-btns">
       <button class="btn btn-main" id="btn-resume">继 续 游 戏</button>
       <button class="btn" id="btn-restart">重 开 本 局</button>
-      <button class="btn btn-ghost" id="btn-quit">返 回 主 界 面</button>
+      <button class="btn btn-ghost" id="btn-quit">返 回 关 卡 列 表</button>
     </div>
-    <div class="pause-note">返回主界面后，本局进度不保留</div>
+    <div class="pause-note">返回关卡列表后，本局进度不保留</div>
   </div>
 </div>
 
@@ -2239,21 +2239,27 @@ const WAVE1_MUL = 1.25;
      v1  基准（无倍率）        → 等效 ×1
      v2  「怪物血量再乘以2倍」  → ×2
      v3  「怪物的血量再乘两倍」  → ×4   ← 这一版**已作废**
-     v4  「乘三倍，之前的两倍再两倍取消」→ ×3   ← 当前
-   所以最终就是**一次干净的 ×3**，不是 ×2 之后再叠 3、也不是 ×6。
+     v4  「乘三倍，之前的两倍再两倍取消」→ ×3
+     v5  「把怪物的血量调低百分之30」   → ×2.1   ← 当前（= 3 × 0.7）
+   每次口径变更都是**在上一版基础上乘一个系数**，而不是回到基准重算 ——
+   「调低 30%」相对的是 v4 的 ×3，不是相对基准 ×1（那样会掉到 ×0.7，比初版还软）。
 
-   关键在「第一波开始」四个字 —— 不是给某一波加权，而是**整条血量曲线等比 ×3**：
-   第 1 波就是基准的三倍，之后 LV/IN/WV/CH_STEP 的递增关系原封不动地继续叠加。
+   关键在「第一波开始」四个字 —— 不是给某一波加权，而是**整条血量曲线等比缩放**：
+   第 1 波就带上倍率，之后 LV/IN/WV/CH_STEP 的递增关系原封不动地继续叠加。
    数学上这是一次等比缩放，因此：
-     · 跨章台阶不等式（prevMax < nextMin）两边同乘 3，**仍然成立**；
+     · 跨章台阶不等式（prevMax < nextMin）两边同乘，**仍然成立**；
      · 「节内逐波递增」的单调性不变；
      · 只有「首波 ×1.25 造成的 1、2 波倒挂」按比例保留（本来就知情，见上）。
    ★ 只作用于**血量**，不碰攻伐（mobAtkScale 不乘） —— 用户说的是「血量」。
    ★ 为什么是等比缩放而不是「给某段加权」：等比缩放是**唯一**能同时保住
      「首波生效 / 逐波递增 / 跨章台阶」三条约束而不破坏任何一条的改法。
-   ⚠ 直接后果：清怪所需时间约为基准的 3 倍，单局时长明显拉长；
-     玩家的应对手段是「飞剑伤害 / 攻速」的乘区成长与装备词条，不是硬扛。 */
-const MOB_HP_MUL = 3;
+   ★ 覆盖范围：主线全部小怪 / 妖修 / 关内魔将（三者都走 mobScale）。
+     **副本（无尽·限时·魔将连战）的魔将不受影响** —— 它们的倍率由 round 递增
+     自己给（`1 + round × 0.35`），是"越撑越强"的独立曲线，本来就不在这条链上。
+   ⚠ 直接后果：清怪所需时间随倍率同向变化。v4 的 ×3 曾让单局明显拉长，
+     v5 回调到 ×2.1 后约为 v4 的 70%，是玩家体感"怪变脆了"的那一档；
+     进一步提速仍应走「飞剑伤害 / 攻速」的乘区成长与装备词条，而不是继续压这个旋钮。 */
+const MOB_HP_MUL = 2.1;
 const CH_STEP_MIN = 9 * IN_STEP + 7 * WV_STEP - LV_STEP;   // ≈ 0.202
 const CH_STEP = [0, 0.34, 0.70, 1.08];
 /* 魔将攻伐走的是另一套系数（台阶按 0.75 折算），约束同源：
@@ -3733,7 +3739,9 @@ function mobScale() {
   const ch = chapterOf(G.lvIdx), inCh = G.lvIdx - ch * CH_SIZE;
   const k = 1 + G.lvIdx * LV_STEP + CH_STEP[ch] + inCh * IN_STEP
               + Math.max(0, G.wave - 1) * WV_STEP;
-  /* MOB_HP_MUL：整条血量曲线等比 ×3（第 1 波即生效，之后照常递增） */
+  /* MOB_HP_MUL：整条血量曲线等比缩放（第 1 波即生效，之后照常递增）。
+     ★ 这里刻意不写具体倍数 —— 当前值、口径变更史、覆盖范围都记在 02_data.js
+     的定义处。旋钮每调一次就改两处注释，必然漏一处（已经漏过一次）。 */
   return (G.wave === 1 ? k * WAVE1_MUL : k) * MOB_HP_MUL;
 }
 function mobAtkScale() {
@@ -6392,6 +6400,21 @@ function bell(f0, dur, vol, delay, dest) {
     tone('sine', f, f * 0.997, dur * (1 - i * 0.22), vol / (1 + i * 1.25), (delay || 0) + i * 0.004, 0, dest);
   }
 }
+/* 钢琴 / 电钢（MC 曲库的主力音色）
+   ---------------------------------------------------------------------------
+   为什么不用一个 triangle 了事：纯振荡器的「电子味」来自**谐波不衰减** ——
+   真钢琴的高次分音衰减得比基音快得多，耳朵正是靠这个把「木」和「电」分开。
+   所以这里让 2 次、3 次谐波各带更短的时长（0.55 / 0.30 倍）与更低的音量：
+   音头有金属亮（敲击感），音尾只剩柔和的基音（木头味）。
+   ★ detune 一律 0：MC 那种氛围钢琴是"干净的"，加失谐会变成走音的旧钢琴。
+   ★ dest 必须透传 —— 0.8 秒交叉淡化要求两首曲子各挂自己的 gain 总线。 */
+function piano(f, dur, vol, delay, dest) {
+  if (!audioReady || !sfxOn() || !AC) return;
+  const d = delay || 0;
+  tone('triangle', f,     f     * 0.9995, dur,        vol,        d,         0, dest);
+  tone('sine',     f * 2, f * 2 * 0.9995, dur * 0.55, vol * 0.26, d + 0.004, 0, dest);
+  tone('sine',     f * 3, f * 3 * 0.9995, dur * 0.30, vol * 0.10, d + 0.008, 0, dest);
+}
 /* 战鼓 / 大鼓：正弦从 160Hz 指数滑到 45Hz（0.18s）+ 白噪瞬态走带通 200Hz。
    ★ 下滑是战鼓的灵魂 —— 它的「重量」来自音高在 0.18 秒内掉了将近两个八度，
      而不是来自把音量开大。只放大音量会变成「砰」的一声闷响，没有鼓的形。 */
@@ -6481,17 +6504,29 @@ const SFX = {
     metal(3400, 0.060, 0.026, 0.007);
     noise(4200, 2600, 0.030, 0.030, 1.8);
   },
-  /* —— 击杀：妖气溃散 ——
-     旧版是「780Hz 金属脆响 + 三连碎裂」，听感像**打碎了瓷器**。
-     妖兽溃散应该是「断掉 + 散开」：一声斩到底的金属收尾，接一段下行的气散，
-     全程 0.16 秒收完。
-     ★ 仍然不留下滑长音 —— 下滑长音是「哀嚎」，本作要的是「干脆地没了」。 */
+  /* —— 击杀：掰饼干的一声脆断（用户口径 2026-09-24） ——
+     用户原话：「杀死怪物的声音改成类似饼干掰开的声音」+「音量调到原来的 40%」。
+     ★ 这是一次**音色换代**，不是调参：旧版（非谐波金属分音 + 气散）听感是
+       「打碎了瓷器」，而那套非谐波分音正是**剑鸣与暴击的身份**（见 metal 的注释）——
+       击杀沿用同一套料，会把"我砍中了"和"它没了"混成一种声音。
+     ---------------------------------------------------------------------------
+     掰饼干的声学三要素（缺一就不像饼干、会变成"沙"或"木头"）：
+       ① 主体是**宽带瞬态破裂**，不是有音高的振动体
+          —— 折断是几十毫秒内的一次能量释放，落在 1~4kHz 最像"脆"；
+       ② 要有**碎屑层**：掰开不是一个断裂点，是好几处同时断，
+          所以叠一层更短、更高、更轻的噪声当"渣"；
+       ③ 要有**低频实体**（一次很短的低声"咔"）—— 手指发力的冲量。
+          没有它，声音会飘在半空，像塑料袋而不是饼干。
+     ★ 不用 metal()：那套 1:2.76:5.40 的非谐波比例是金属板的身份，
+       掰饼干是木质/食物的折断，两者混了就是"敲铁皮饼干"。
+     ★ 音量整体 ×0.4（旧 0.058 / 0.036 / 0.020 → 0.023 / 0.012 / 0.008）：
+       打怪时这个声音每秒会响好几次，用户要的就是"听得见但不吵"。 */
   kill() {
     if (!sfxThrottle('kill', 38)) return;
-    const d = Math.random() * 110;
-    metal(880 + d, 0.130, 0.058);                         // 斩到底
-    noise(2600, 600, 0.160, 0.036, 1.0);                  // 妖气散开
-    tone('sine', 180, 92, 0.090, 0.020);                  // 一点体量
+    const d = Math.random() * 380;
+    noise(2600 + d, 820, 0.055, 0.023, 1.1);              // ① 主断裂：中高频带通噪声，向下扫
+    noise(4200, 2600, 0.030, 0.012, 1.5, 'highpass', 0.006); // ② 碎屑：更短更高的一层"渣"
+    tone('sine', 200, 105, 0.060, 0.008);                 // ③ 低频实体：一点点"咔"的底
   },
   /* —— 魔将 / 心魔被斩：重量与脆响都要 ——
      只有重量会闷，只有脆响会像打小怪。低频给体量、金属给身份、气散给收尾，
@@ -6503,25 +6538,21 @@ const SFX = {
     noise(2200, 500, 0.420, 0.040, 0.9);
     noise(5200, 2600, 0.060, 0.026, 2.2, 'bandpass', 0.012);
   },
-  /* —— 板块点击：极轻木鱼 ——
-     提示词 14.4：「UI 按钮 · 极轻木鱼 · 0.04s，音量约 0.05，绝不吵」。
-     ★ 换掉了原来的 triangle + 噪声（那更接近「电子嗒」而不是木鱼）。
-       木鱼的配方是「极短白噪脉冲 + 中频带通共振」（速查表 2.2），
-       所以关键在**高 Q 的带通**（Q=6）—— 低 Q 只会得到一声「嚓」，
-       高 Q 才有木头被敲的那个腔体共鸣。 */
-  ui() {
-    if (!sfxThrottle('ui', 45)) return;
-    noise(1500, 900, 0.040, 0.050, 6.0);        // 木鱼的腔体共振
-    tone('sine', 1180, 1050, 0.030, 0.018);     // 极轻的一层音高身份
-  },
-  /* —— 选择技能：古琴拨弦 0.15s 带混响尾（提示词 14.4） ——
-     与 ui() 的木鱼刻意分开：木鱼是「按到了」，拨弦是「我做了个决定」。
-     三选一是每局最需要仪式感的操作，用一个专属音把它从普通点击里拎出来。
-     三角波 + 极快起音 + 一条五度泛音，尾巴交给总线的山洞混响去收。 */
+  /* ★ 这里原来有一个 ui()（极轻木鱼）。已在 2026-09-24 **删除** ——
+     它与 click() 是**同一件事的两个音效**：点一个 [data-act] 节点，
+     05_boot.js 的捕获阶段发 click()、04_ui.js 的委托又发 ui()，叠成"两声"。
+     用户口径：「你现在打开一个节点的声音是两声，还是一个回声，
+     你需要把这个声音改成一声，就是前面的那一声，简单干脆。」
+     click() 在捕获阶段先响，就是「前面的那一声」，所以留它、去掉 ui()。
+     配方（极短白噪脉冲 + 带通共振）没有丢，落在了下方 click() 里。 */
+  /* —— 选择技能：古琴拨弦，**单音**（提示词 14.4） ——
+     与 click() 的点击音刻意分开：点击是「按到了」，拨弦是「我做了个决定」。
+     ★ 用户口径（2026-09-24）：「不要用回声，就用简单干脆的第一个声音就行了」——
+       旧版是**三音**：根音 392 + 五度泛音 588 + **延后 0.055 秒**的高八度 784。
+       那 0.055 秒的错开正是"回声"：听上去是"弹了一下、然后远处又响一下"。
+       现在只留第一个音（根音）—— 五度和延迟高八度都去掉。 */
   pickSkill() {
     tone('triangle', 392.00, 392.00, 0.15, 0.070);
-    tone('sine',     588.00, 588.00, 0.15, 0.026);
-    tone('triangle', 783.99, 783.99, 0.20, 0.036, 0.055);
   },
   /* —— 玩家受击：故意做成「闷」的 ——
         低频 + 低通噪声，不清脆。玩家一挨打就听到清脆的金属声会误判成
@@ -6549,15 +6580,25 @@ const SFX = {
     if (!sfxThrottle('pickup', 70)) return;
     const f = PENTA_UP[Math.min(pickupChain.i, PENTA_UP.length - 1)];
     pickupChain.i++;
-    tone('sine', f, f * 1.02, 0.08, 0.030);
+    /* ★ 音量 ×0.4（0.030 → 0.012，用户口径 2026-09-24：「获取经验的声音
+       调到原来的 40%」）。拾取是全游戏**触发最密**的音效 ——
+       一波清场能连响七八次，40% 之后它才退回"背景里的奖励音"的位置，
+       把听觉前台让给剑鸣和击杀。音高递进的机制一个没动（那才是"上瘾"的来源）。 */
+    tone('sine', f, f * 1.02, 0.08, 0.012);
   },
-  /* —— 修为精进（升级）：磬 + 低吟 pad ——
+  /* —— 修为精进（升级）：一记干脆的磬 ——
      提示词 14.4：「升级三选一弹出 · 磬 + 低吟 pad · 0.6s，配合画面短暂停顿」。
-     ★ 原来是四音 triangle 上行（C-E-G-C），那是一句「旋律」而不是一记「礼器」。
-       磬给身份、低吟给垫底，两者叠起来才有「境界抬了一格」的仪式感。 */
+     ★ 用户口径（2026-09-24）：「升级获取技能的那个声音，不要用回声，
+       就用简单干脆的第一个声音就行了」—— 这条覆盖了上面那条"磬 + 低吟 pad"：
+         · 删掉 chant 低吟垫：它是另一半回声来源，还拖在磬后面 0.6 秒；
+         · 磬的衰减从 1.60 秒收到 0.45 秒 —— **磬的身份（非谐波分音）保留**，
+           但不再"余音绕梁"。原来的 1.6 秒 + 总线山洞混响，听感就是
+           一次敲击加一段回声，而升级一局要触发十几次，累积起来很吵。
+     ★ 为什么仍用磬、不干脆换成别的：升级音与择技音必须是**两种内核**
+       （test_sfx ⑨），否则「我升级了」和「我选了个技能」在听觉上分不开。
+     ★ 境界抬了一格的仪式感靠**磬这个音色**撑，不靠它的长度撑。 */
   levelup() {
-    bell(1046.50, 1.60, 0.055);
-    chant(0.60, 0.030, 0.02);
+    bell(1046.50, 0.45, 0.055);
   },
   /* —— 波次开始：低沉号角两音 —— */
   wave() {
@@ -6623,11 +6664,24 @@ const SFX = {
       metal(1500 + i * 210, 0.16 - i * 0.012, 0.026 - i * 0.002, i * 0.055);
     noise(5000, 2400, 0.30, 0.024, 2.2);
   },
-  /* —— 界面 —— */
+  /* —— 界面：板块点击，**一声**（用户口径 2026-09-24） ——
+     用户原话：「你现在打开一个节点的声音是两声，还是一个回声，
+     你需要把这个声音改成一声，就是前面的那一声，简单干脆。」
+     ---------------------------------------------------------------------------
+     「两声」有两个来源，这次一起掐掉：
+       ① **同一动作两个音效**：点 [data-act] 时 05_boot.js 的捕获阶段发
+          click()、04_ui.js 的委托又发 ui() —— 两个音效各响一遍。
+          → 已删掉 ui()（见上方删除处的说明）。
+       ② **单个音效内部两层**：旧 click() 是「宽带噪声层 + 音高层」，
+          两层音高不同而起始时间相同 → 听着像一个音头拖了个回声。
+          → 这里只留第一层。
+     ★ 留下的这一层就是「前面的那一声」：3.2kHz→1.4kHz 的宽带下扫，30 毫秒，
+       Q=1.4（低 Q = 宽频 = 「嗒」而不是「叮」）。
+     ★ 不再给它叠音高层是有理由的：点击是「按到了」，本来就**不该有音高身份** ——
+       音高身份要留给技能（拨弦）和掉宝（编钟），否则三类反馈糊成一片。 */
   click() {
     if (!sfxThrottle('click', 40)) return;
     noise(3200, 1400, 0.030, 0.055, 1.4);
-    tone('sine', 1250, 900, 0.035, 0.026);
   },
   open() {
     tone('triangle', 520, 780, 0.12, 0.042);
@@ -6744,54 +6798,127 @@ const SFX = {
     **是硬切**。现在每首曲子挂在自己的 gain 总线上，换曲时一升一降，
      0.8 秒后旧总线断连（不断连就是内存泄漏，正是提示词警告的那一类）。
    ========================================================================= */
-/* scale：可用音高；beat：一拍毫秒数；hi/hiV/hiLen/hiWave：高音点缀的概率、音量、长度、波形
-   lowWave/lowV/lowLen/lowN：低频垫音；fifth：是否叠五度；det：音分失谐
-   drum：是否有鼓层；clang/thunder/tritone：专属点缀概率；k：曲目唯一键（换曲判据） */
+/* =========================================================================
+   ★★ 曲库整体换成 MC（我的世界）风格（用户口径 2026-09-24）
+   ---------------------------------------------------------------------------
+   用户原话：「背景音乐改成 MC 里面的音乐，就是我的世界里面的音乐」。
+   ★ 版权：本作一向**不带音频文件**，且 C418 的原曲受版权保护 ——
+     所以这里不是"把原曲塞进来"，而是用振荡器**还原那种听感**：
+     慢速 + 分解和弦 + 长音垫 + 偶发钟琴，自然音阶调式，配器只有钢琴与垫音。
+     出来的是"像 MC 的氛围音乐"，不是"MC 的某一首曲子"（也别当成翻奏）。
+   ---------------------------------------------------------------------------
+   【为什么整体换而不是"给战斗曲加个 MC 版"】
+     MC 的音乐没有战斗 / 非战斗之分，它是**一片持续的氛围**。
+     所以这次把场景级、章节级、副本级三档全部换掉，只保留"每一档听感不同"的结构：
+     场景靠调式与速度区分（封面最慢、副本最快），章节靠**换调**（四章四个调），
+     章内仍靠 secVariant 做同源变奏（四十关四十个可分辨的动机）。
+   ---------------------------------------------------------------------------
+   曲目字段（MC 分支）：
+     scale    7 音自然音阶（一个八度内）—— 全落在 196~625Hz，战斗曲也不抢频段
+     chords   和弦进行：每项是 3 个**音级下标**（指向 scale），不是写死频率
+              —— 同一套进行套大调 scale 就是大调、套小调 scale 就是小调，
+                 换调只换 scale，不必重写和声
+     barBeats 每个和弦占几拍
+     arpPat   琶音走位（和弦内下标），决定"这一关的旋律长什么样"
+     arpEvery 每几拍一个琴音（越大越空）
+     padLen/padV  低音长垫的时长与音量（空间感的来源）
+     pianoLen/arpV 琴音余音时长与音量
+     bellP    钟琴点缀概率
+     beat     一拍毫秒数；k 曲目唯一键（换曲判据）；n 曲名（domToast 会显示）
+   ★ 非 MC 曲目仍走下面那套旧播放逻辑（bgmStepPlay 的后半段）——
+     当前 12 首**全部**带 mc 标记，所以那段暂为备用；留着是为了将来
+     能按章节加回"剑鸣 / 闷雷"这类专属点缀时不必重写骨架。
+   ========================================================================= */
+
+/* 各调自然音阶（7 音）。上限压在 625Hz 以内：既要"低音区铺底"，
+   又要让 ×2 的琴音落在 1.2kHz 附近（人耳舒服、又不会跟剑鸣抢 2~5kHz）。 */
+const MC_KEY_C  = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88]; // C 大调
+const MC_KEY_Am = [220.00, 246.94, 261.63, 293.66, 329.63, 349.23, 392.00]; // A 小调
+const MC_KEY_Dm = [293.66, 329.63, 349.23, 392.00, 440.00, 466.16, 523.25]; // D 小调
+const MC_KEY_Fm = [349.23, 392.00, 415.30, 466.16, 523.25, 554.37, 622.25]; // F 小调
+const MC_KEY_Em = [329.63, 369.99, 392.00, 440.00, 493.88, 523.25, 587.33]; // E 小调
+const MC_KEY_G  = [196.00, 220.00, 246.94, 261.63, 293.66, 329.63, 369.99]; // G 大调（低八度）
+const MC_KEY_Bbm= [233.08, 261.63, 277.18, 311.13, 349.23, 369.99, 415.30]; // 降 B 小调
+
+/* 和弦进行。I-vi-IV-V 是流行/氛围音乐里最"不着力"的一条，
+   也是 MC 那种"没有目标、只是待着"的听感最直接的来源。 */
+const MC_I     = [0, 2, 4];      // I   （大调：C  E  G ／ 小调：i）
+const MC_VI    = [5, 0, 2];      // vi  （Am）
+const MC_IV    = [3, 5, 0];      // IV  （F）
+const MC_V     = [4, 6, 1];      // V   （G）
+const MC_III   = [2, 4, 6];      // iii （Em）
+const MC_VII   = [6, 1, 3];      // vii （Bdim 感）
+const MC_CH_MAIN  = [MC_I, MC_VI, MC_IV, MC_V];    // I - vi - IV - V（最"我的世界"）
+const MC_CH_OPEN  = [MC_I, MC_IV, MC_V, MC_VI];    // I - IV - V - vi（更开阔）
+const MC_CH_DARK  = [MC_I, MC_VI, MC_III, MC_VII]; // i - VI - III - VII（阴郁）
+const MC_CH_RISE  = [MC_I, MC_V, MC_VI, MC_IV];    // I - V - vi - IV（昂扬）
+
+/* 琶音走位：长度 4，覆盖两小节（barBeats=4 / arpEvery=2 → 每小节 2 个音）。
+   ★ 这里是**一节一条**（10 条），不是 4 条轮着用 —— 原因见 secVariant 的注释：
+     琶音型与和弦轮转的周期如果都是 4，10 节里必然出现「第 5 节 ≡ 第 1 节」
+     这种同型（test_bgm.py 的「节内变奏可辨」就是专门抓这个的）。
+     扩到 10 条既解决了唯一性，也正好就是「一关一音」的本意：每节一条。
+   型态依次是：上-上-下 / 上行回根 / 下行 / 跳进 / 顶起落根 / 根中根顶 /
+   顶根中顶 / 中根顶中 / 根顶根中 / 中顶根顶。 */
+const MC_ARP = [
+  [0, 1, 2, 1],
+  [0, 1, 2, 0],
+  [2, 1, 0, 1],
+  [0, 2, 1, 2],
+  [1, 2, 1, 0],
+  [0, 1, 0, 2],
+  [2, 0, 1, 2],
+  [1, 0, 2, 1],
+  [0, 2, 0, 1],
+  [1, 2, 0, 2],
+];
+
 const BGM = {
   /* ---------- 场景级：非战斗 ---------- */
-  sc_title: { k:'sc_title', n:'山门', beat:2000, hi:0.40, hiWave:'triangle', hiOct:2, hiV:0.015, hiLen:1.30,
-         lowWave:'sine', lowV:0.018, lowLen:4.00, fifth:true, lowN:2,
-         scale:[261.63, 293.66, 329.63, 392.00, 440.00, 523.25] },        // 宫调 C（空灵）
-  sc_name: { k:'sc_name', n:'问道', beat:2300, hi:0.30, hiWave:'sine', hiOct:2, hiV:0.014, hiLen:1.80,
-         lowWave:'sine', lowV:0.016, lowLen:4.60, fifth:false, lowN:2,
-         scale:[261.63, 293.66, 329.63, 392.00, 440.00, 523.25] },        // 宫调 C · 极稀（入定）
-  sc_lobby: { k:'sc_lobby', n:'洞天', beat:1850, hi:0.55, hiWave:'triangle', hiOct:2, hiV:0.016, hiLen:1.20,
-         lowWave:'sine', lowV:0.019, lowLen:3.80, fifth:true, lowN:3, chime:0.08,
-         scale:[330.00, 371.25, 440.00, 495.00, 550.00, 660.00] },        // 羽调 A（悠远松弛）
-  sc_result_win: { k:'sc_win', n:'功德圆满', beat:1500, hi:0.60, hiWave:'triangle', hiOct:2, hiV:0.017, hiLen:1.60,
-         lowWave:'sine', lowV:0.020, lowLen:3.20, fifth:true, lowN:3, chime:0.12,
-         scale:[523.25, 587.33, 659.25, 783.99, 880.00, 1046.50] },       // 宫调上行（释然）
-  sc_result_lose: { k:'sc_lose', n:'道消', beat:2400, hi:0.32, hiWave:'sine', hiOct:1, hiV:0.013, hiLen:2.00,
-         lowWave:'sine', lowV:0.017, lowLen:4.60, fifth:false, lowN:2,
-         scale:[220.00, 261.63, 293.66, 329.63, 392.00, 440.00] },        // 羽调下行（低沉）
-  /* ---------- 场景级：四章战斗 ---------- */
-  ch0: { k:'ch0', n:'云海秘境', beat:1800, hi:0.70, hiWave:'triangle', hiOct:2, hiV:0.017, hiLen:1.10,
-         lowWave:'sine', lowV:0.020, lowLen:3.40, fifth:true, lowN:3, drum:true,
-         scale:[261.63, 293.66, 329.63, 392.00, 440.00, 523.25] },        // C 宫（仙气）
-  ch1: { k:'ch1', n:'万剑冢',   beat:1600, hi:0.62, hiWave:'sine',     hiOct:2, hiV:0.016, hiLen:0.85,
-         lowWave:'triangle', lowV:0.017, lowLen:3.00, fifth:true, lowN:3, drum:true,
-         clang:0.18,
-         scale:[293.66, 329.63, 392.00, 440.00, 523.25, 587.33] },        // D 商（冷冽）
-  ch2: { k:'ch2', n:'天劫台',   beat:1200, hi:0.58, hiWave:'triangle', hiOct:2, hiV:0.014, hiLen:0.72,
-         lowWave:'triangle', lowV:0.016, lowLen:2.40, fifth:false, lowN:2, drum:true,
-         thunder:0.10, det:4,
-         scale:[220.00, 261.63, 293.66, 329.63, 392.00, 440.00] },        // A 羽（压抑）
-  ch3: { k:'ch3', n:'幽冥鬼域', beat:2200, hi:0.45, hiWave:'sine',     hiOct:2, hiV:0.013, hiLen:1.50,
-         lowWave:'sine', lowV:0.019, lowLen:4.20, fifth:false, lowN:3, drum:true,
-         det:7, drone:true,
-         scale:[293.66, 349.23, 392.00, 440.00, 523.25, 587.33] },        // 含小三度（阴森）
-  /* ---------- 场景级：三个副本 ---------- */
-  dn_endless: { k:'dn_endless', n:'无尽妖潮', beat:1300, hi:0.78, hiWave:'triangle', hiOct:2, hiV:0.015, hiLen:0.70,
-         lowWave:'triangle', lowV:0.015, lowLen:2.20, fifth:false, lowN:2, det:3, drum:true,
-         scale:[246.94, 293.66, 329.63, 392.00, 493.88, 587.33] },        // B 调式（越撑越紧）
-  dn_timed: { k:'dn_timed', n:'限时斩妖', beat:900,  hi:0.85, hiWave:'triangle', hiOct:2, hiV:0.011, hiLen:0.42,
-         lowWave:'triangle', lowV:0.014, lowLen:1.60, fifth:true, lowN:3, drum:true,
-         scale:[261.63, 329.63, 392.00, 440.00, 523.25, 659.25] },        // C 宫加速版（催命）
-  dn_boss: { k:'dn_boss', n:'魔将连战', beat:1400, hi:0.50, hiWave:'sine', hiOct:2, hiV:0.012, hiLen:0.95,
-         lowWave:'triangle', lowV:0.016, lowLen:3.00, fifth:false, lowN:2, drum:true,
-         tritone:0.16, det:5,
-         scale:[220.00, 233.08, 277.18, 311.13, 349.23, 415.30] },        // 半音密集（压迫）
+  sc_title: { k:'sc_title', n:'山门', mc:true, beat:1500, hiOct:2,
+         scale:MC_KEY_C, chords:MC_CH_MAIN, barBeats:4, arpPat:MC_ARP[0], arpEvery:2,
+         padLen:7.0, padV:0.020, arpV:0.030, pianoLen:2.6, bellP:0.10 },
+  sc_name: { k:'sc_name', n:'问道', mc:true, beat:1650, hiOct:2,
+         scale:MC_KEY_C, chords:MC_CH_OPEN, barBeats:4, arpPat:MC_ARP[1], arpEvery:2,
+         padLen:7.5, padV:0.018, arpV:0.026, pianoLen:3.0, bellP:0.06 },   // 极稀，入定
+  sc_lobby: { k:'sc_lobby', n:'洞天', mc:true, beat:1350, hiOct:2,
+         scale:MC_KEY_C, chords:MC_CH_OPEN, barBeats:4, arpPat:MC_ARP[0], arpEvery:2,
+         padLen:6.2, padV:0.021, arpV:0.031, pianoLen:2.4, bellP:0.12 },
+  sc_result_win: { k:'sc_win', n:'功德圆满', mc:true, beat:1200, hiOct:2,
+         scale:MC_KEY_C, chords:MC_CH_RISE, barBeats:4, arpPat:MC_ARP[0], arpEvery:1,
+         padLen:5.0, padV:0.022, arpV:0.032, pianoLen:2.2, bellP:0.16 },
+  sc_result_lose: { k:'sc_lose', n:'道消', mc:true, beat:1800, hiOct:2,
+         scale:MC_KEY_Am, chords:MC_CH_DARK, barBeats:4, arpPat:MC_ARP[2], arpEvery:2,
+         padLen:8.0, padV:0.017, arpV:0.024, pianoLen:3.2, bellP:0.04 },
+  /* ---------- 章节级：四域四调（跨章必须换调，章内交给 secVariant 变奏） ---------- */
+  ch0: { k:'ch0', n:'云海秘境', mc:true, beat:1400, hiOct:2,
+         scale:MC_KEY_C, chords:MC_CH_MAIN, barBeats:4, arpPat:MC_ARP[0], arpEvery:2,
+         padLen:6.8, padV:0.020, arpV:0.030, pianoLen:2.6, bellP:0.10 },  // C 大调（云上开阔）
+  ch1: { k:'ch1', n:'万剑冢', mc:true, beat:1280, hiOct:2,
+         scale:MC_KEY_Am, chords:MC_CH_DARK, barBeats:4, arpPat:MC_ARP[2], arpEvery:2,
+         padLen:6.0, padV:0.019, arpV:0.028, pianoLen:2.3, bellP:0.08 },  // A 小调（冷冽）
+  ch2: { k:'ch2', n:'天劫台', mc:true, beat:1150, hiOct:2,
+         scale:MC_KEY_Dm, chords:MC_CH_DARK, barBeats:4, arpPat:MC_ARP[3], arpEvery:1,
+         padLen:4.8, padV:0.017, arpV:0.026, pianoLen:1.9, bellP:0.06 },  // D 小调（压抑）
+  ch3: { k:'ch3', n:'幽冥鬼域', mc:true, beat:1550, hiOct:2,
+         scale:MC_KEY_Fm, chords:MC_CH_DARK, barBeats:4, arpPat:MC_ARP[2], arpEvery:2,
+         padLen:8.5, padV:0.021, arpV:0.027, pianoLen:3.4, bellP:0.05 },  // F 小调（阴森、余音最长）
+  /* ---------- 副本级：三种玩法三调（比主线更紧：arpEvery 更小、拍更短） ---------- */
+  dn_endless: { k:'dn_endless', n:'无尽妖潮', mc:true, beat:1050, hiOct:2,
+         scale:MC_KEY_Em, chords:MC_CH_MAIN, barBeats:4, arpPat:MC_ARP[0], arpEvery:1,
+         padLen:4.4, padV:0.016, arpV:0.024, pianoLen:1.7, bellP:0.07 },
+  dn_timed: { k:'dn_timed', n:'限时斩妖', mc:true, beat:950, hiOct:2,
+         scale:MC_KEY_G, chords:MC_CH_RISE, barBeats:4, arpPat:MC_ARP[1], arpEvery:1,
+         padLen:3.6, padV:0.015, arpV:0.022, pianoLen:1.5, bellP:0.09 },
+  dn_boss: { k:'dn_boss', n:'魔将连战', mc:true, beat:1250, hiOct:2,
+         scale:MC_KEY_Bbm, chords:MC_CH_DARK, barBeats:4, arpPat:MC_ARP[3], arpEvery:1,
+         padLen:5.4, padV:0.018, arpV:0.026, pianoLen:2.1, bellP:0.05 },
 };
+/* 把和弦进行循环左移 n 位：secVariant 用它做"每节的和声从哪一拍进"的差异 */
+function rotChords(chs, n) {
+  const k = ((n % chs.length) + chs.length) % chs.length;
+  return chs.slice(k).concat(chs.slice(0, k));
+}
 
 /* ★ 关卡级动机表：每条是 5 个音级（0~5 = scale 的下标），一章 10 节各一条。
    它是「一关一音」的载体 —— 调式相同（同域），但每关走位的音不同（换关）。
@@ -6812,7 +6939,7 @@ const SEC_MOTIF = [
 /* 把章级 profile 派生成「第 s 节」的变奏（s = 0..9，章内节号） */
 function secVariant(pr, s, ch) {
   const i = ((s % 10) + 10) % 10;
-  return Object.assign({}, pr, {
+  const v = Object.assign({}, pr, {
     k: 'ch' + ch + 's' + i,
     n: pr.n + ' · 第 ' + (i + 1) + ' 节',
     /* 章内越往后越紧：一拍缩短最多 6%（10 节下来约 +6% 速度感），
@@ -6823,6 +6950,25 @@ function secVariant(pr, s, ch) {
     /* 低音根音在 scale 内的起始位置：起句与收束都落 0（主音），中间游走 */
     rootDeg: (i === 0 || i === 9) ? 0 : (i % 2),
   });
+  /* ★ MC 曲库的「一关一音」换一套载体 —— 旧载体是 motif（一串音级走位），
+     但 MC 分支的音高**必须来自当前和弦**（随机取音会立刻从"旋律"退化成
+     "环境音效"，那是 mcStepPlay 的设计前提）。所以改成动这三件事：
+       · arpPat   每节一条独立的琶音走位（MC_ARP 共 10 条，周期 10）
+       · chords   和弦进行左移 i 位（4 个和声起点，周期 4）
+       · arpEvery 第 7 节起加密（周期 1，只影响后半章）
+     ★ 上一版踩过的坑：琶音型只有 4 条、和弦轮转周期也是 4，两者周期相同 →
+       第 5 节 ≡ 第 1 节、第 8 节 ≡ 第 4 节、第 10 节 ≡ 第 2 节，三处完全同型
+       （"一关一音"名存实亡）。是 test_bgm.py 的「节内变奏可辨」抓出来的 ——
+       所以把琶音型扩到 10 条，让每节拥有自己的一条旋律走位。
+     ★ 绝不动 scale —— 换调是「换域」，那是章节的权限，不是节的。 */
+  if (pr.mc) {
+    v.arpPat    = MC_ARP[i % MC_ARP.length];
+    v.chords    = rotChords(pr.chords, i);
+    /* 章内越往后：钟琴越稀、琴音越密 —— 与 beat 变紧同向，都指向「越走越急」 */
+    v.bellP     = Math.max(0.02, (pr.bellP || 0.08) * (1 - (i - 4.5) * 0.05));
+    v.arpEvery  = (i >= 6 && pr.arpEvery > 1) ? 1 : pr.arpEvery;
+  }
+  return v;
 }
 
 let bgmTimer = null, bgmStep = 0, bgmCur = null, bgmKey = null, bgmNoticed = null;
@@ -6902,6 +7048,20 @@ function bgmScene() { bgmKey = null; bgmCur = null; bgmStep = 0; if (!bgmTimer) 
 function bgmEntrance() {  if (!audioReady || !AC || !bgmOn() || !sfxOn()) return;
   const pr = bgmProfile();
   if (!pr) return;
+  /* ★ MC 曲库的入境音景：把本关的**开头和弦**拆开独奏 ——
+     入境就把这一关的和声预告出来，比随机弹三个音更有"进门"的意思。
+     ★ 这里不放原来那声 1.5~3kHz 的风噪：那是仙侠味的"破空"，MC 的入境是安静的。 */
+  if (pr.mc) {
+    const sc = pr.scale, ch0 = (pr.chords || MC_CH_MAIN)[0];
+    /* ★ 时长按 **2 秒**卡：3 个音、间隔 0.30 秒、每音 1.5 秒 →
+       末尾落在 2.10 秒，正好是「每关 2 秒入境音景」（检查项 25）。
+       ★ 这里**不能**直接用曲目的 pianoLen（2.2~3.4 秒）：那会拖到 3.7 秒，
+         入境音景就变成"入境演奏"了 —— 入境是"一瞥"，不是"一场"。 */
+    for (let i = 0; i < 3; i++) {
+      piano(sc[ch0[i % ch0.length] % sc.length] * 2, 1.5, 0.034 - i * 0.005, i * 0.30);
+    }
+    return;
+  }
   const sc = pr.scale, mo = pr.motif || [0, 2, 4, 3, 1];
   for (let i = 0; i < 3; i++) {
     const f = sc[mo[i % mo.length]] * 2;
@@ -6929,6 +7089,10 @@ function bgmTick() {
   bgmTimer = setTimeout(bgmTick, bgmMod);
 }
 function bgmStepPlay(pr, dest) {
+  /* ★ MC 曲库走独立的和声驱动逻辑（见下方 mcStepPlay 的三条设计依据）。
+     在这里转发、而不是在 bgmTick 里分派 —— 这样"对任意一首曲子调 bgmStepPlay"
+     的断言（test_bgm.py ⑥「合成不报错」）对两套曲库都有效，不会悄悄漏测。 */
+  if (pr && pr.mc) return mcStepPlay(pr, dest);
   const det = pr.det || 0;
   const sc = pr.scale;
   /* 低音根音：每 5 拍一次，极缓的和声推进。
@@ -6977,6 +7141,55 @@ function bgmStepPlay(pr, dest) {
     tone('sine', r * 1.414, r * 1.414, 2.6, 0.014, 0, det, dest);
   }
 }
+
+/* =========================================================================
+   MC（我的世界）风格播放器
+   ---------------------------------------------------------------------------
+   为什么不能"用参数调一调旧曲库"就算完 —— C418 的听感由三件事共同决定，
+   缺任何一件立刻就不像：
+     ① 慢：一拍 0.95~1.8 秒，音符之间留大片空白。
+        「等」本身就是这种音乐的内容，铺满音符就变成了 BGM 而不是氛围。
+     ② 分解和弦（琶音）：音高**必须来自当前和弦**并按顺序走。
+        随机取音会立刻从"旋律"退化成"环境音效" —— 这是与旧播放逻辑最根本的区别。
+     ③ 长音垫：低音区一条跨小节的柔和长音。空间感全靠它撑：
+        没有它，钢琴音像在空房间里弹；有它，才像在山谷里弹。
+   ---------------------------------------------------------------------------
+   结构：每 barBeats 拍换一个和弦（和弦进行由曲目表给），一拍一调度 ——
+     · 和弦第一拍 → 铺一条低音长垫（跨整小节，尾音盖进下一小节 → 连绵不断）
+     · 每 arpEvery 拍 → 一个琴音，按 arpPat 在和弦内游走
+     · 低概率 → 一个高八度钟琴（MC 里那些"叮"是稀疏的，密了就变风铃铺底）
+   ★ 与旧播放器的关系：bgmStepPlay 是统一入口，遇 mc 曲目转发到这里。
+   ========================================================================= */
+function mcStepPlay(pr, dest) {
+  const sc = pr.scale, chs = pr.chords || MC_CH_MAIN;
+  const bars = pr.barBeats || 4;
+  const k = bgmStep - 1;                 // 从 0 起的全局拍号（bgmTick 已 ++ 过）
+  if (k < 0) return;
+  /* 当前和弦：按小节推进、循环整个进行 */
+  const chord = chs[Math.floor(k / bars) % chs.length].map(function (i) {
+    return sc[i % sc.length];
+  });
+  /* ① 低音长垫：只在和弦的第一拍起。低八度 —— 把中高音区留给琴音。 */
+  if (k % bars === 0) {
+    const root = chord[0] / 2;
+    tone('sine', root, root, pr.padLen || 6.0, pr.padV || 0.020, 0, 0, dest);
+    const top = chord[2] / 2;
+    tone('sine', top, top, (pr.padLen || 6.0) * 0.72, (pr.padV || 0.020) * 0.42, 0.06, 0, dest);
+  }
+  /* ② 琶音：按 arpPat 在和弦内游走，高八度（压在垫音之上才听得清） */
+  const every = pr.arpEvery || 2;
+  if (k % every === 0) {
+    const pat = pr.arpPat || MC_ARP[0];
+    const at = Math.floor(k / every) % pat.length;
+    piano(chord[pat[at] % chord.length] * 2, pr.pianoLen || 2.2, pr.arpV || 0.030, 0, dest);
+  }
+  /* ③ 钟琴：低概率的高音点缀，×3 而不是 ×4 —— ×4 会顶到 2.5kHz，
+     跟剑鸣/暴击挤在同一个人耳最敏感的频段里（音效要清晰，BGM 得让路）。 */
+  if (pr.bellP && Math.random() < pr.bellP) {
+    bell(sc[(Math.random() * sc.length) | 0] * 3, 2.4, 0.008, 0, dest);
+  }
+}
+
 /* 让 BGM 知道刚才是胜是败（结算页要放不同的一首）。
    由 SFX.win() / SFX.lose() 顺手设置 —— 这样音频层不必反向依赖 UI 的胜负变量。 */
 function bgmMarkResult(w) { bgmLastResult = w; }
@@ -7076,7 +7289,10 @@ function domToast(msg) {
    测试与埋点一律按 k 定位，别再按下标。 */
 /* 自带专属音效、不需要再叠点击音的动作（见点击入口的说明）：
    gearequip 会播 SFX.gear（拾宝音），再叠一记 ui 就成了两声。 */
-const UI_QUIET_ACT = { gearequip: 1 };
+/* ★ 这里原来有一张 UI_QUIET_ACT 白名单（记录"自带专属音效、不该再补点击音"的 act）。
+   2026-09-24 删掉 —— 点击音现在只剩 05_boot.js 里**一个**入口（SFX.click()），
+   白名单存在的理由（避免一次点击响两声）也随之消失。
+   见 06_audio.js 的 click()、以及本文件事件委托里的删除说明。 */
 const NAV = [
   { k:'quick',   ic:'战', img:'sc_ch1', t:'继续修行', s:'从最高关卡直接开打', primary:true, act:quickStart },
   { k:'levels',  ic:'秘', img:'sc_ch2', t:'秘境试炼', s:'4 章 40 节 · 星级评价', hot:true,
@@ -8491,11 +8707,12 @@ document.addEventListener('click', function (e) {
   while (node && node !== document && !(node.getAttribute && node.getAttribute('data-act'))) node = node.parentNode;
   if (!node || node === document || !node.getAttribute) return;
   const act = node.getAttribute('data-act');
-  /* ★ 统一点击音（2026-09-24 用户口径：「每个板块点击需要有一个提示音」）。
-     落在这里而不是散进每个 act 分支里，是为了「一处生效、永不遗漏」——
-     以后新增任何 data-act 的按钮，都自动带上反馈音，不用记得去补。
-     唯一的例外是**自带专属音效**的动作（见表），否则一次点击会响两声。 */
-  if (!UI_QUIET_ACT[act]) SFX.ui();
+  /* ★ 这里原来有一句 `if (!UI_QUIET_ACT[act]) SFX.ui();`（统一点击音 + 白名单例外）。
+     2026-09-24 删除：它和 05_boot.js 捕获阶段的 SFX.click() 是**同一件事的两个音效** ——
+     点一个 [data-act] 节点会先响 click()、再响 ui()，用户听到的就是「两声 / 回声」。
+     原话：「把这个声音改成一声，就是前面的那一声，简单干脆」。
+     点击音现在**只有一个入口**（05_boot.js 那个监听，作用于所有 button 与 [data-act]），
+     所以这里不再发声，连带那张「哪些 act 该闭嘴」的白名单也一起删了。 */
   const i = parseInt(node.getAttribute('data-i') || '0', 10);
   if (act === 'nav')          { clickNav(i); }
   else if (act === 'charpage') { charOpen = -1; renderChars(); showScreen('sc-char'); }
@@ -8727,9 +8944,14 @@ function boot() {
     beginBattle(lastBegin.mode, lastBegin.idx);
   });
   el['btn-quit'].addEventListener('click', () => {
+    /* ★ 用户口径（2026-09-24）：「把返回主界面，变成这个界面（关卡列表）、不要主界面」。
+       原来这里回 sc-title（带封面的封面页），但暂停退出的人**接下来就是想换一关打** ——
+       落回封面等于把他丢到"死路"上：还要再点一次「进入游戏」才回到关卡列表。
+       现在直接落回大厅（关卡列表就在大厅里），少一次点击。
+       ★ 仍然刷新大厅：本局进度不保留，灵石/修为/掉落都要按最新存档重画。 */
     setPause(false);
     refreshLobby(); renderLobbyGrid();
-    showScreen('sc-title');                       // 返回主界面（本局进度不保留）
+    showScreen('sc-lobby');
   });
   el['btn-again'].addEventListener('click', () => {
     requestWake();
