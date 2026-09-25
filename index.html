@@ -297,6 +297,14 @@ button{font-family:inherit;}
   border:1px solid currentColor;margin-right:5px;}
 .t-wei{color:#e8996a;} .t-eff{color:#7fb8ff;} .t-sta{color:#7fe0b8;} .t-spe{color:#e79aff;}
 .stars{color:#ffd96b;font-size:13px;letter-spacing:1px;}
+/* 关卡状态色标（V3.0 ⑦）：替掉每关重复印一遍的「未通关」，见 04_ui.js 的 lvStateHTML()。
+   颜色在这里定，文案在 JS 里 —— 调色不必改逻辑，改文案不必碰样式。 */
+.stars .lg{font-style:normal;font-weight:700;margin-right:3px;}
+.stars .lg:last-child{margin-right:0;}
+.stars .lg-ok{color:#8fe3c8;}
+.stars .lg-go{color:#e8c877;}
+.stars .lg-lock{color:#7d8695;}
+.stars .lg-st{color:#ffd96b;letter-spacing:1px;}
 .empty{color:var(--dim);font-size:12.5px;text-align:center;padding:26px 10px;line-height:1.9;}
 .hint{font-size:11.5px;color:var(--dim);line-height:1.8;padding:2px 4px;}
 .kv{display:flex;justify-content:space-between;font-size:12.5px;color:#d6ccb6;
@@ -420,6 +428,10 @@ button{font-family:inherit;}
 .chc-tx b{display:block;font-family:"Songti SC",serif;font-size:17px;letter-spacing:1px;}
 .chc-role{font-family:inherit;font-size:10.5px;color:var(--dim);margin-left:7px;
   border:1px solid rgba(190,160,92,.4);border-radius:7px;padding:1px 6px;letter-spacing:1px;}
+/* 境界徽标（V3.0 ⑤）：与战斗世界的境界灵光同名同色 —— 面板里也能一眼看出「他也变强了」。
+   border 走 currentColor，颜色由内联 style 的 color 决定，不必为 10 个境界各写一条规则。 */
+.chc-rg{font-family:inherit;font-size:10px;margin-left:6px;border-radius:7px;
+  padding:1px 6px;letter-spacing:1px;border:1px solid currentColor;opacity:.92;}
 .chc-tx small{display:block;font-size:11.5px;color:#cbbfa6;margin-top:3px;line-height:1.5;}
 .chc-tx .chc-src{color:var(--dim);}
 .chc-act{flex:0 0 auto;}
@@ -687,6 +699,23 @@ button{font-family:inherit;}
   font-family:inherit;font-size:12.5px;
   border:1px solid var(--tc,#e8c877);background:rgba(0,0,0,.34);color:var(--tc,#e8c877);}
 .gr-c-act button.sell{flex:0 0 96px;border-color:var(--line);color:var(--dim);}
+/* ===== 淬炼区（V3.0）· 装备详情卡内 =====
+   词条用紫色（与剑魄同色系 —— 两者的关联是设计上的："剑魄可抵扣淬炼"），
+   与金色的"专属特效"、灰白的"固定数值"形成三档视觉区分。 */
+.gr-grp li.chm{color:#c9a7ff;font-weight:600;}
+.gr-grp li.chm:before{color:#c9a7ff;}
+.gr-grp li.chm-none{color:#8a8478;font-style:italic;padding-left:11px;}
+.gr-grp li.chm-none:before{content:'';}
+.chm-hint{font-size:11px;color:#9aa3ae;line-height:1.65;margin-top:5px;}
+.chm-hint b{color:#e8c877;}
+.chm-bar{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.chm-bar button{flex:1 1 44%;min-width:0;padding:8px 4px;border-radius:8px;cursor:pointer;
+  font-family:inherit;font-size:12px;border:1px solid var(--tc,#c9a7ff);
+  background:rgba(0,0,0,.34);color:var(--tc,#c9a7ff);transition:transform .12s;}
+.chm-bar button:active{transform:scale(.96);}
+.chm-bar button.ten{border-color:#e8c877;color:#e8c877;}
+.chm-bar button.jp{border-color:#c9a7ff;color:#c9a7ff;}
+.chm-bar button.cp{flex:1 1 100%;border-color:#ff9a4d;color:#ff9a4d;}
 
 .gr-bagh{display:flex;align-items:center;gap:8px;margin:2px 0 7px;}
 .gr-bagh>span:first-child{font-size:11.5px;color:var(--gold-d);letter-spacing:1px;}
@@ -1064,7 +1093,7 @@ button{font-family:inherit;}
 <div class="ov" id="ov-levelup">
   <div class="ov-box">
     <div class="ov-title">修为精进</div>
-    <div class="ov-sub">择 一 而 修 · 可 无 限 叠 加</div>
+    <div class="ov-sub">择 一 而 修 · 可 叠 加</div>
     <div class="choices" id="lvup-choices"></div>
   </div>
 </div>
@@ -1212,6 +1241,36 @@ function realmStageIdx(i) {
   return 9;
 }
 function realmStage(i) { return REALM_STAGES[realmStageIdx(i)]; }
+/* ★ V3.0 ⑤：外观阶段按「是不是主角」打折 —— 主角 100%、道友 **60%**。
+     语义是 `scale = 1 + (rs.scale − 1) × 0.6`（只缩"成长的那一部分"，
+     不是把整个 1.200 乘 0.6 —— 那会把道友缩到比基础还小，明显是错的）。
+   为什么必须打折：七位道友是「同行者」，气质该收一点。
+     若和主角一样长到 1.20，八人同屏时主角反而没有主角相。
+   ★ 只打 `scale`，**glow / ring 原样保留** ——
+     灵光与脚下法阵是「修行成果」的公共表达，谁修到这个境界谁就该有；
+     体型才是"主角光环"的载体。这条区分是刻意的，别为了"统一"一起打折。
+   ★ 判定半径 hero.r 独立、绝不跟着放大（沿用既有口径：
+     视觉略大于判定对玩家是**宽容向**偏差，不要为了"对齐"去放大 r）。 */
+const CHAR_REALM_K = 0.6;
+function realmStageOf(charKey) {
+  const rs = realmStage(save ? save.realmIdx : 0);
+  if (!charKey || charKey === 'main') return rs;
+  return { n:rs.n, c:rs.c, glow:rs.glow, ring:rs.ring,
+           scale: 1 + (rs.scale - 1) * CHAR_REALM_K };
+}
+function charRealmGlow(charKey) { return realmStageOf(charKey).glow; }
+/* 十六进制色 → rgba 字符串。
+   为什么需要它：境界灵光要按 `glow`（0~0.92）做**半透明**发光，而 `REALM_STAGES`
+   给的是不透明 hex。硬编码 rgba 就等于把颜色抄了第二遍 —— 以后改配色两边会走样。
+   ★ 只做 #rgb / #rrggbb 两种写法；非法输入回落白色（宁可发光颜色不对，也不要 NaN）。 */
+function hexA(hex, a) {
+  const s = String(hex == null ? '' : hex).replace('#', '').trim();
+  const n = s.length === 3 ? s[0] + s[0] + s[1] + s[1] + s[2] + s[2]
+                           : (s.length === 6 ? s : '');
+  const v = n ? parseInt(n, 16) : NaN;
+  if (!isFinite(v)) return 'rgba(255,255,255,' + a + ')';
+  return 'rgba(' + ((v >> 16) & 255) + ',' + ((v >> 8) & 255) + ',' + (v & 255) + ',' + a + ')';
+}
 const CN_NUM = ['零','一','二','三','四','五','六','七','八','九','十','十一','十二','十三'];
 const PHASE_CN = ['初','中','后'];
 /* 中文数字（0~99）：「七重」「十二层」「二十三」这类显示用。
@@ -1238,6 +1297,61 @@ function realmName(i) {
 function realmMajor(i) {
   const r = REALMS[Math.max(0, Math.min(REALMS.length - 1, i))];
   return r ? r.major : '凡人';
+}
+
+/* =========================================================================
+   散仙循环层（V3.0 ②）：让满境之后的修为**永远有用**
+   ---------------------------------------------------------------------------
+   问题（本代要解决的三条之一）：
+     满境（渡劫·后期，60,000 修为）之后修为继续累积**毫无意义** ——
+     实测主线 40 关全通手上约 101,660 修为，**四成被白白扔掉**。
+     玩家的每一次斩妖在满境后都不再有任何回报，这是最伤留存的一种"到头感"。
+
+   设计：满境之后修为进入「散仙」循环层，**无上限**。
+       散仙重数 = ⌊(修为 − 60,000) / 20,000⌋
+       每重 +2% 全属性（气血 / 攻击 / 移速 / 暴击）
+       每 5 重一个称号（散仙·五重 / 十重 / 十五重 …）
+
+   ★ 为什么与 acctLv() **分开算**：
+       `acctLv()` 是「账号等级」——有上限、走幂函数（见 ③）、只给固定的
+       气血/攻击/移速；散仙是「境界循环」——无上限、走线性、给**百分比**。
+       两者语义不同、曲线形状不同、调的动因也不同。
+       合并成一个函数，以后想单独压平其中一条就会牵动另一条。
+   ★ 属性入口是 heroStats() 末尾的**独立第三层乘区**（与角色加成同级），
+     不并入局内的 P.atkMul —— 否则会和"疾风剑诀 / 血怒"这类局内加成叠乘，
+     在散仙十几重时滚成雪球。
+   ★ 散仙**不改外观**：REALM_STAGES 只到第 9 档（大乘渡劫），散仙沿用该档的
+     灵光与体型，不再继续放大 —— 体型无限增大会变成"占满屏幕的色块"。
+   ========================================================================= */
+const SANXIAN_NEED  = 20000;   // 每重所需修为（满境之后）
+const SANXIAN_PER   = 0.02;    // 每重 +2% 全属性
+const SANXIAN_TITLE = 5;       // 每 5 重一个称号
+function realmMaxNeed() { return REALMS[REALMS.length - 1].need; }   // 60,000
+/* 散仙重数：满境之前恒为 0（这是「满境前恒为 0」回归断言的唯一出口） */
+function sanxianLv() {
+  if (!save) return 0;
+  const over = (save.xiuwei || 0) - realmMaxNeed();
+  return over <= 0 ? 0 : Math.floor(over / SANXIAN_NEED);
+}
+/* 全属性乘区（气血/攻击/移速/暴击共用一个系数，避免四条曲线各自跑偏） */
+function sanxianMul() { return 1 + sanxianLv() * SANXIAN_PER; }
+function sanxianName() {
+  const n = sanxianLv();
+  return n <= 0 ? '' : ('散仙 · ' + numCn(n) + '重');
+}
+/* 距下一重还差多少修为；满境前返回「进入循环层还差多少」——
+   这样境界页在任何阶段都能显示一个明确的目标数字，不会出现空档。 */
+function sanxianNext() {
+  if (!save) return SANXIAN_NEED;
+  const x = save.xiuwei || 0, base = realmMaxNeed();
+  if (x < base) return base - x;
+  return base + (sanxianLv() + 1) * SANXIAN_NEED - x;
+}
+/* 已达成的散仙称号（每 5 重一个）——境界页用来列"里程碑" */
+function sanxianTitles() {
+  const out = [], n = sanxianLv();
+  for (let t = SANXIAN_TITLE; t <= n; t += SANXIAN_TITLE) out.push('散仙 · ' + numCn(t) + '重');
+  return out;
 }
 
 /* ---------------- 妖兽（小怪） ---------------- */
@@ -2010,7 +2124,7 @@ const CH_STORY = [
     body:'剑冢之主的残剑落地，四十万柄锈剑同时长鸣，随后一齐折断。\n' +
          '冢底露出一条向下的裂谷，寒气自谷中涌出，' +
          '谷壁刻着半行字：「天劫者，非天降，乃人引。」\n' +
-         '你忽然明白——剑冢不是坟墓，是**路标**。',
+         '你忽然明白——剑冢不是坟墓，是「路标」。',
     got:'无尽妖潮 · 限时斩妖' },
   { ch:2, t:'天劫台 · 雷尽人存',
     body:'最后一柱九霄雷光散去，天罚台上只剩你一人站着。\n' +
@@ -2140,8 +2254,24 @@ function storyState() {
    靠字段探测根本分不开。版本号要在 merge **之前**读原始 JSON 才准。
    （这不是假想问题：第一版就是靠探测 beat 字段，结果刚通关第 1 节的新档
      被误判成老档 —— 那一节的解锁演出被当成「早就播过」而静默吞掉，
-     表现是「打完第 1 节什么都没发生」。） */
-const SAVE_VER = 2;
+     表现是「打完第 1 节什么都没发生」。）
+
+   ★ 版本 3（V3.0）：新增「装备淬炼 / 散仙循环 / 副本里程碑 / 周标识 / 折扣券」。
+     为什么这次**必须**抬版本号（而不是靠 deepMerge 补默认值就够）：
+     `stats.milestone` 与 `weekTag` 是**内容型字段**，它们的"缺失"含义与
+     "值为空"完全不同 ——
+       · `milestone` 缺失 = 这条档从没领过副本里程碑（该补一次首达判定）；
+       · 值全空        = 领过了，且本档内没有任何里程碑到期。
+     靠 deepMerge 补默认值会把两者补成同一个样子（空对象），
+     于是一个"从没算过里程碑"的老档会被当成本周已领过，**第一份奖励直接吞掉**。
+     只有"读 merge 之前的 ver"这一条路能分开它们。
+     （`legacyComp` 一度也是抬版本号的动机之一，但它后来改成了无状态的
+       `progressComp()` —— 见那个函数的说明。抬版本号的必要性现在由上面两条承担。）
+     抬到 3 的副作用是：**V2.0 的存档会再跑一次 migrateStoryBeats()**。
+     这是安全的、且是幂等的 —— 因为解锁节拍本身在 `endBattle → markBeat()`
+     那一刻就已经落盘（不依赖演出播完），所以对已经通关过的节，重跑只是
+     把已经置位的 beat 再置一次。见 loadSave 里那条 `!parsed.story` 的旁注。 */
+const SAVE_VER = 3;
 /* 老档迁移：引入节拍之前的存档没有 beat 记录。若不管，
    一个早已通关第一章的老玩家会遇到两件坏事 ——
    ① 四条教学剧情从头糊脸；② 更糟的是装备栏/背包/功法/天机阁会**重新上锁**
@@ -2177,6 +2307,61 @@ function migrateProgress() {
   for (let i = 0; i < LEVELS.length; i++)
     if (save.levels && save.levels[i] && save.levels[i].clear) need = Math.max(need, i + 1);
   if (need > st.bestLevel) st.bestLevel = need;
+}
+/* ★ 进度补偿（V3.0 ③ 的配套，**必须做**；原名「老玩家一次性补偿」）
+   ---------------------------------------------------------------------------
+   背景：本代把 `acctLv()` 从线性 `1+⌊修为/260⌋` 改成幂函数 `1+⌊(修为/260)^0.6⌋`。
+   这是**有意削弱**：40 关终局从 Lv.392 压到 Lv.36（−91%）。
+   原因不是"数值太大不好看"，而是它把难度曲线稀释掉了 ——
+   +2352 气血 / +392 攻击 / +392 移速 让后期变成"越玩越简单"。
+
+   但对**已经打到中后期**的玩家，直接上这个改动 = 一觉醒来属性腰斩，
+   而且他手上的关卡难度没变 —— 这是最伤信任的一种改动方式。
+   所以按「历史最高关」给一笔固定补偿：
+
+      补偿 = bestLevel × (气血 42 / 攻击 5 / 移速 2)
+
+   ★ 为什么基准是 `bestLevel` 而不是 `修为`：
+     用修为就等于把刚砍掉的那条曲线**原样加回来**，白改。
+     bestLevel 有上界（40），所以补偿有上界（气血 +1680 / 攻击 +200 / 移速 +80）——
+     它是一次性的"历史存量兑现"，不是一个会继续膨胀的乘区。
+   ★ 为什么移速补得最少（只有 2/关）：
+     旧曲线的移速膨胀是最破坏手感的（40 关时 584 vs 基准 192，
+     玩家速度是最快小怪的 2.8 倍，走位完全失去意义）。
+     气血给到 84% 的还原度、攻击 65%、移速刻意只给 53% ——
+     这是一个**有取舍的**补偿，不是等比还原。
+
+   ---------------------------------------------------------------------------
+   ★★ V3.0 修订（**实测倒逼，改了机理**）：从「只发给老档的一次性快照」
+      改成「**按 bestLevel 实时计算、对所有人一视同仁**」。
+
+   为什么必须改（三份实测数据，同台架、同种子、同帧预算）：
+     · 台架修好前，AI 卡在第 2 关，看不出差别；
+     · 台架修好后（见 test2.py 里"第四个缺陷"），同一套 AI：
+         V2.0（线上产物）：种子 1/2/3 **全部 40 关通关**，余血均值 82.6%；
+         V3.0（本代产物）：种子 1/2/3 分别卡在 **L30 / L38 / L27**（阵亡）——
+                           前 30 关余血均值 71.1%、<50% 的有 8 关（张力其实更好），
+                           但后期**过不去**。
+     · 根因：账号曲线压平后，L30 处的玩家只有 V2.0 同进度的 **48% 气血 / 39% 攻伐**
+       （784 vs 1630 气血）。而快照补偿只发给"改动之前就存在的档"——
+       新玩家一分钱都拿不到，于是**新档必然卡在中后期**。
+       而「40 关通关实测」是本代的硬验收项（提示词·验收标准），
+       所以"只给老档"这条路在验收口径下走不通。
+
+   为什么"实时算"和"发一次快照"在数值上等价：
+     `stats.bestLevel` 是**只增不减**的派生缓存（migrateProgress 只向上修）。
+     快照存的是 `bl × 系数`，实时算的也是 `bl × 系数` —— 同一个 bl，同一个结果。
+     区别只在"谁能拿到"：新档从 0 关一路长到 40 关，强度曲线自然接上，
+     不会出现"打到第 30 关突然比老玩家弱一半"这种断层。
+
+   ★ 为什么保留 `save.legacyComp` 字段：老档里已经写进去了（SAVE_VER 2→3 时发的），
+     删字段会让已上线的那批档白改一次。它现在只作**改动痕迹**保留，不参与任何计算。
+   ========================================================================= */
+const COMP_PER_LEVEL = { hp: 42, atk: 5, spd: 2 };
+function progressComp() {
+  const bl = Math.max(0, (save && save.stats && save.stats.bestLevel) || 0);
+  return { bl: bl, hp: bl * COMP_PER_LEVEL.hp,
+           atk: bl * COMP_PER_LEVEL.atk, spd: bl * COMP_PER_LEVEL.spd };
 }
 /* 推进一章剧情：记「已看」，并把该章解锁的功能入口标成「还没点开过」——
    引导条就是靠这个 seen 标记，一步一步把玩家领去新功能。 */
@@ -2594,6 +2779,216 @@ const JIANPO_EXCH = [
   { k:'shield', n:'护身符', cost:3, d:'3 枚剑魄 → 护身符 ×1' },
   { k:'rage',   n:'狂暴丹', cost:3, d:'3 枚剑魄 → 狂暴丹 ×1' },
 ];
+
+/* =========================================================================
+   装备淬炼（V3.0 ①）：给灵石开**第二出口**
+   ---------------------------------------------------------------------------
+   为什么是本代最重要的一条：
+     剑匣四项拉满共需 98,828 灵石，而主线末关结束时**已经全满、还余 8,264** ——
+     即最后 5~10 关的产出**没有任何用途**。经济链条在通关那一刻断掉。
+     淬炼是唯一的解，而且**带随机性就能无限吸收产出**：
+     只要 `300 × 1.18^n` 还会涨，就永远有一个"再多洗一次"的理由。
+     这是最省力、也最有效的长线设计（比再开一种货币划算得多）。
+
+   规则
+     词条条数：品阶 1~2 → 0 条（不给）；品阶 3~5 → 1 条；品阶 6（神品）→ 2 条
+     数值区间：随品阶线性上移 —— 品阶 3 落在区间下段、品阶 6 落在上段
+     消耗：`300 × 1.18^该件已洗次数`，**单件封顶 8,000**
+     抵扣：允许用剑魄按 `1 剑魄 = 60 灵石` 等值抵扣（复用 V2.0 的货币，不新增）
+
+   ★ 存储位置是 `g.charm = [{k, v}, …]`，**与 GEAR_PASSIVES 分开放**。
+     混进 `g.pas` 会让"装备自带的被动"与"玩家洗出来的词条"无法区分，
+     以后想单独调整其中一边（比如削弱淬炼）就必须遍历所有装备去猜。
+   ★ 数值生效走 `gearBonus()` 的**独立累加项**，不再乘一层乘区 ——
+     淬炼是可以无限重复的，任何乘区都会在几十次之后滚成雪球。
+   ★ 随机源**必须可注入**：`rollCharm(ti, exclude, rnd)` 收外部 `rnd()`。
+     测试里传定值序列即可拿到确定结果（`Math.random()` 直接跑断言是间歇性报红的根源）。
+   ========================================================================= */
+const CHARM_POOL = [
+  { k:'jiansu',  n:'剑 速', dec:1, lo:0.04, hi:0.12, pct:true,  d:'攻速 +X%' },
+  { k:'jianlie', n:'剑 烈', dec:1, lo:0.15, hi:0.45, pct:true,  d:'暴击伤害 +X%' },
+  { k:'jianyu',  n:'剑 域', dec:1, lo:0.08, hi:0.25, pct:true,  d:'剑气范围 +X%' },
+  /* 剑运是**唯一影响产出的词条** —— 长线刷淬炼的核心动力，所以它的稀有度最高
+     （只在品阶 5、6 的池子里权重不降，见 CHARM_WEIGHT） */
+  { k:'jianyun', n:'剑 运', dec:0, lo:1,    hi:4,    pct:false, d:'掉落品阶权重 +X' },
+  { k:'jianshi', n:'剑 噬', dec:0, lo:2,    hi:6,    pct:false, d:'击杀回血 +X（每只）' },
+  { k:'jianyin', n:'剑 引', dec:1, lo:0.15, hi:0.40, pct:true,  d:'灵气拾取范围 +X%' },
+];
+function charmOf(k) { for (const c of CHARM_POOL) if (c.k === k) return c; return CHARM_POOL[0]; }
+/* 剑运在低品阶几乎洗不到（权重 0.25），品阶 5 起才恢复正常 —— 保底机制之外的稀有度闸门 */
+const CHARM_WEIGHT = { jianyun: 0.25 };
+const CHARM_TIER_MIN = 3;        // 品阶 < 3 不给词条
+const CHARM_SPREAD   = 0.35;     // 同品阶内的浮动带宽（占整个区间的比例）
+const CHARM_HIGH     = 0.70;     // 「高值」判据：落在本区间 70% 分位以上
+const CHARM_PITY     = 5;        // 连续 5 次没出高值 → 第 6 次必出
+const CHARM_COST_BASE = 300;
+const CHARM_COST_STEP = 1.18;
+const CHARM_COST_CAP  = 8000;
+/* 品阶（1..6）→ 词条条数 */
+function charmCount(ti) {
+  const n = (ti | 0) + 1;
+  if (n < CHARM_TIER_MIN) return 0;
+  return n >= 6 ? 2 : 1;
+}
+/* 洗第 `rolls` 次的灵石价（rolls 从 0 起）—— 单件封顶 8,000 */
+function charmCost(rolls) {
+  const n = Math.max(0, rolls | 0);
+  return Math.min(CHARM_COST_CAP, Math.round(CHARM_COST_BASE * Math.pow(CHARM_COST_STEP, n)));
+}
+/* 等价剑魄数（向上取整：不够 1 枚也要收 1 枚，不能靠 0.4 枚白嫖） */
+function charmCostJp(rolls) { return Math.max(1, Math.ceil(charmCost(rolls) / JIANPO_COIN_RATE)); }
+/* 品阶 → 浮动位置 t（品阶 3 → 0，品阶 6 → 1） */
+function charmT(ti) {
+  const n = (ti | 0) + 1;
+  if (n <= CHARM_TIER_MIN) return 0;
+  return Math.min(1, (n - CHARM_TIER_MIN) / (6 - CHARM_TIER_MIN));
+}
+/* 该品阶的取值区间：以 t 为中心的 ±CHARM_SPREAD 带，两端夹紧到池子的 lo/hi。
+   于是「品阶 3 取下限、品阶 6 取上限」成立，同时同品阶内仍有浮动（保底才有意义）。 */
+function charmRange(ti, d) {
+  const t = charmT(ti);
+  const lo = d.lo + (d.hi - d.lo) * clamp01(t - CHARM_SPREAD);
+  const hi = d.lo + (d.hi - d.lo) * clamp01(t + CHARM_SPREAD);
+  return { lo: lo, hi: hi };
+}
+function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
+/* 洗一次。返回 { k, v, high } —— 不写盘、不改存档，纯函数（方便测试与重试）。
+   `exclude` 是**同一件装备上已有的词条 key**：保底第一条，
+   不出与同件其它词条完全相同的效果（神品两条词条因此必然不同）。
+   `pity` 是调用方传进来的"连续未出高值次数"：
+     达到 CHARM_PITY 时本次强制高值（并让调用方把计数器归零）。 */
+function rollCharm(ti, exclude, rnd, pity) {
+  rnd = rnd || Math.random;
+  exclude = exclude || [];
+  let d = null;
+  for (let i = 0; i < 12; i++) {
+    /* 加权抽（剑运在低品阶被 CHARM_WEIGHT 压住），抽到重复的 key 就重抽 */
+    let tot = 0;
+    const w = CHARM_POOL.map(c => {
+      const ww = (c.k === 'jianyun' && charmT(ti) < 0.6) ? CHARM_WEIGHT.jianyun : 1;
+      tot += ww; return ww;
+    });
+    let r = rnd() * tot, pick = CHARM_POOL.length - 1;
+    for (let j = 0; j < CHARM_POOL.length; j++) { r -= Math.max(0.01, w[j]); if (r <= 0) { pick = j; break; } }
+    if (exclude.indexOf(CHARM_POOL[pick].k) < 0) { d = CHARM_POOL[pick]; break; }
+  }
+  if (!d) d = charmOf('jiansu');                      // 极端情况下兜底，绝不留 undefined
+  const R = charmRange(ti, d);
+  const forced = (pity || 0) >= CHARM_PITY;
+  let frac = rnd();
+  if (forced) frac = 0.85 + rnd() * 0.15;             // 保底：直接给区间最高的那一段
+  const v = gearRound(R.lo + (R.hi - R.lo) * frac, d.dec);
+  return { k: d.k, v: v, high: (frac >= CHARM_HIGH), forced: forced };
+}
+/* 一条词条的展示文案（详情页与"洗一次"结果播报共用同一出口）
+   ★ 百分号只写在**模板**里（CHARM_POOL 的 `d` 是 `'攻速 +X%'`），
+     所以 `val` 必须只填数字 —— 两边都带 `%` 的话 UI 上会显示成 `+30.0%%`。
+     这正是"文案走单一出口"的价值：一处写错，测试一次就能抓到全部六条词条。 */
+function charmLine(c) {
+  const d = charmOf(c.k);
+  const val = d.pct ? (c.v * 100).toFixed(d.dec) : String(c.v);
+  return d.n + '　' + d.d.replace('X', val);
+}
+
+/* =========================================================================
+   副本长线产出（V3.0 ④）：把「只有记录」变成「有产出」
+   ---------------------------------------------------------------------------
+   问题：三个副本此前都只有「最佳记录」，没有任何奖励 ——
+   打完一次就再没有来的理由，而它们恰恰是通关之后唯一还能玩的内容。
+
+   统一货币 = **剑魄**（复用 V2.0 引入的，不新增第二种货币）。
+   为什么复用而不是新开一种：新货币就要新开一页兑换、新一套文案、
+   以及一个新的"通胀口径"要盯。剑魄已经是"失败也有产出"的载体，
+   让它同时承担"副本产出"是最省的做法，且两条产出线可以互相解释。
+
+       无尽妖潮  每 20 秒一个台阶 → **首达**第 N 阶给 `N × 3` 剑魄；
+                 **每周重置**一次（本机周榜，`save.weekTag` 判周）——
+                 这是本作唯一的"周期性回访"钩子。
+       限时斩妖  击杀 20/40/60/80/100 → 10/25/45/70/100 剑魄（**每档只发一次**）
+       魔将连战  通过第 N 轮 → `N × 15` 剑魄；第 5/10/15 轮额外给「淬炼折扣券」
+
+   ★ **所有"只发一次"的档位必须落盘** `save.stats.milestone = { key:1 }`。
+     不落盘的后果不是"少给"，而是"**刷新页面就能重复领**" ——
+     玩家把结算页刷新十次就白拿十份，这是最典型的一种经济漏洞。
+   ★ 产出总量意识：三副本全清约给 **800~1,200 剑魄 ≈ 4.8~7.2 万灵石等值**。
+     设计意图是"用副本刷淬炼"，**不要给到能一键毕业** ——
+     一次满配淬炼封顶 8,000 灵石，所以全清 ≈ 6~9 次满配 —— 够用，但不富裕。
+   ========================================================================= */
+const DUNGEON_JP = {
+  endless: { step: 20, per: 3 },              // 每 20 秒一阶，第 N 阶给 N×3
+  timed: [ { n:20, jp:10 }, { n:40, jp:25 }, { n:60, jp:45 }, { n:80, jp:70 }, { n:100, jp:100 } ],
+  boss: { perRound: 15, couponRounds: [5, 10, 15] },
+};
+/* 里程碑表：`save.stats.milestone[key] = 1` 表示已领过。返回 true = 本次是首次（该发）。 */
+function milestoneOnce(key) {
+  if (!save.stats) return false;
+  if (!save.stats.milestone || typeof save.stats.milestone !== 'object') save.stats.milestone = {};
+  if (save.stats.milestone[key]) return false;
+  save.stats.milestone[key] = 1;
+  return true;
+}
+/* 本机周标识（ISO 周）。★ 用 UTC 拼再取整周 —— 本地时区会在周日/周一交界处
+   把同一周算成两个不同的周，玩家会看到"周榜莫名重置了两次"。 */
+function weekTagOf(d) {
+  d = d || new Date();
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  const w = Math.ceil(((t - y0) / 86400000 + 1) / 7);
+  return t.getUTCFullYear() + '-W' + (w < 10 ? '0' + w : w);
+}
+/* 周更检查：跨周则清掉无尽妖潮的**首达里程碑与周榜**，让它每周可以再领一次。
+   返回 true = 本次真的跨周了（调用方据此决定是否 saveGame）。 */
+function rollWeekIfNeeded() {
+  const cur = weekTagOf();
+  if (!save.weekTag) { save.weekTag = cur; return true; }
+  if (save.weekTag === cur) return false;
+  save.weekTag = cur;
+  if (save.stats && save.stats.milestone)
+    for (const k in save.stats.milestone) if (k.indexOf('endless:') === 0) delete save.stats.milestone[k];
+  if (save.dungeons && save.dungeons.endless) save.dungeons.endless.weekBest = 0;
+  return true;
+}
+/* 结算本次副本产出。**返回逐条播报行**（UI 不许自己拼，避免两处措辞不一致）：
+     每行是 `{ t:文案, jp:剑魄数, coup:折扣券数 }` —— 两个字段分开，
+     ★ 不能把折扣券也算成剑魄（第一版就是这么写的，会把券折算进总量白送货币）。
+   调用方负责 saveGame()；本函数只改 save 内存状态。 */
+function dungeonReward() {
+  const out = [];
+  if (!save || !G) return out;
+  if (G.mode === 'endless') {
+    const D = DUNGEON_JP.endless;
+    const step = Math.floor((G.time || 0) / D.step);
+    let got = 0;
+    for (let i = 1; i <= step; i++) if (milestoneOnce('endless:' + i)) got += i * D.per;
+    /* 周榜：只记本周最高阶（跨周会被 rollWeekIfNeeded 清零） */
+    const d = (save.dungeons.endless = save.dungeons.endless || {});
+    d.weekBest = Math.max(d.weekBest || 0, step);
+    if (got) out.push({ t:'无尽妖潮 · 首达第 ' + step + ' 阶', jp:got, coup:0 });
+  } else if (G.mode === 'timed') {
+    const k = G.kills || 0;
+    let got = 0;
+    for (const T of DUNGEON_JP.timed) if (k >= T.n && milestoneOnce('timed:' + T.n)) got += T.jp;
+    if (got) out.push({ t:'限时斩妖 · 斩 ' + k + ' 只', jp:got, coup:0 });
+  } else if (G.mode === 'boss') {
+    const B = DUNGEON_JP.boss;
+    const round = G.bossKilled || 0;
+    let got = 0, coup = 0;
+    for (let i = 1; i <= round; i++) if (milestoneOnce('boss:' + i)) got += i * B.perRound;
+    for (const r of B.couponRounds) if (round >= r && milestoneOnce('coupon:' + r)) coup++;
+    if (coup) save.coupons = (save.coupons || 0) + coup;
+    if (got)  out.push({ t:'魔将连战 · 通过第 ' + round + ' 轮', jp:got, coup:0 });
+    if (coup) out.push({ t:'魔将连战 · 淬炼折扣券', jp:0, coup:coup });
+  }
+  /* 剑魄入账：与主线那一笔同口径（余额 + 累计）。**只累加 jp 字段。** */
+  const total = out.reduce((a, r) => a + (r.jp || 0), 0);
+  if (total > 0) {
+    save.jianpo = (save.jianpo || 0) + total;
+    save.stats.jianpoTotal = (save.stats.jianpoTotal || 0) + total;
+  }
+  return out;
+}
 
 const CH_STEP_MIN = 9 * IN_STEP + 7 * WV_STEP - LV_STEP;   // ≈ 0.202
 const CH_STEP = [0, 0.34, 0.70, 1.08];
@@ -3094,6 +3489,7 @@ function gearBonus() {
     flat:{ atk:0, hp:0, dr:0 },
     pct:{ atk:0, aspd:0, spd:0, exp:0, dr:0, pen:0 },
     pas:{}, tra:{},
+    charm: gearCharmSum(),      // V3.0：淬炼词条（**独立累加项**，见下）
   };
   const worn = (save && save.worn) || {};
   GEAR_SLOTS.forEach(s => {
@@ -3109,6 +3505,114 @@ function gearBonus() {
   const totCap = { atk:1.80, aspd:1.40, spd:1.10, exp:2.00, dr:0.62, pen:1.00 };
   for (const k in B.pct) B.pct[k] = Math.min(B.pct[k], totCap[k]);
   return B;
+}
+
+/* =========================================================================
+   淬炼词条：汇总与生效（V3.0 ①）
+   ---------------------------------------------------------------------------
+   六条词条在战斗里各自的落点 —— **全部映射到已经存在的参数，零新增战斗代码**：
+       剑速 jiansu  → aspd      攻速乘区（间隔取倒数）
+       剑烈 jianlie → critDmg   暴击伤害倍率的**加法**（与角色 critDmg 同一条路）
+       剑域 jianyu  → blast     溅射半径的**加法**
+       剑运 jianyun → tier      掉落品阶权重右移（唯一影响产出的词条）
+       剑噬 jianshi → killHeal  每只击杀的固定回血
+       剑引 jianyin → pick      拾取范围乘区
+   ★ 为什么全部走**独立累加项**、不走乘区：
+     淬炼是可以无限重复的（只要灵石够），任何乘区都会在几十次之后滚成雪球；
+     加法自带边际递减，天然自限。
+   ★ 每条都有**单独的上限**（CHARM_CAP）：防止"六件全洗同一条"把某一维推到崩坏
+     （比如攻速叠到出剑间隔低于帧长、或者拾取半径大到全屏自动收菜）。
+   ========================================================================= */
+const CHARM_TARGET = {
+  jiansu:'aspd', jianlie:'critDmg', jianyu:'blast',
+  jianyun:'tier', jianshi:'killHeal', jianyin:'pick',
+};
+/* 单属性总上限（六件装备合起来算，不是单件） */
+const CHARM_CAP = { aspd:0.60, critDmg:1.50, blast:120, tier:12, killHeal:24, pick:1.20 };
+function gearCharmSum() {
+  const S = { aspd:0, critDmg:0, blast:0, tier:0, killHeal:0, pick:0 };
+  const worn = (save && save.worn) || {};
+  GEAR_SLOTS.forEach(s => {
+    const g = worn[s.k];
+    if (!g || !g.charm) return;
+    for (const c of g.charm) {
+      const t = CHARM_TARGET[c.k];
+      if (t && S[t] !== undefined) S[t] += c.v;
+    }
+  });
+  for (const k in S) S[k] = Math.min(S[k], CHARM_CAP[k]);
+  return S;
+}
+/* 洗一次。**扣费与写词条必须在同一个函数里**，且只在全部成功后 saveGame() ——
+   否则会出现"钱花了、词条没落下"的中间态（玩家刷新页面就白花）。
+   `pay` 三选一：
+     'coin'   灵石（默认）
+     'jp'     剑魄等价抵扣（1 剑魄 = 60 灵石，向上取整）
+     'coupon' 淬炼折扣券（魔将连战第 5/10/15 轮的奖励）—— **完全免费，不消耗任何货币**
+   ★ 券不参与 `charmRolls` 的计费递增：券只抵"这一次的钱"，
+     "洗了多少次"必须照常累加 —— 否则用券能把涨价曲线按住，淬炼就失去长线意义。 */
+function charmDo(g, pay) {
+  pay = pay || 'coin';
+  if (!g) return { ok:false, msg:'没有可淬炼的法宝' };
+  const n = charmCount(g.ti);
+  if (n <= 0) return { ok:false, msg:'凡品 / 良品无灵性 —— 须上品及以上方可淬炼' };
+  const rolls = g.charmRolls || 0;
+  const cost = charmCost(rolls), costJp = charmCostJp(rolls);
+  let useCoupon = false;
+  if (pay === 'coupon') {
+    if ((save.coupons || 0) < 1) return { ok:false, msg:'没有可用的淬炼折扣券' };
+    useCoupon = true;
+  } else if (pay === 'jp') {
+    if ((save.jianpo || 0) < costJp) return { ok:false, msg:'剑魄不足（需 ' + costJp + ' 枚）' };
+  } else {
+    if ((save.coins || 0) < cost) return { ok:false, msg:'灵石不足（需 ' + cost + '）' };
+  }
+  const cur = (g.charm || []).slice();
+  const filling = cur.length < n;   // 还没填满槽位 → 新增；已满 → 重洗最后一条
+  /* 排除「本件其它词条」的 key：神品的两条词条因此必然不同（保底第一条） */
+  const exclude = (filling ? cur : cur.slice(0, cur.length - 1)).map(c => c.k);
+  const r = rollCharm(g.ti, exclude, Math.random, g.charmPity || 0);
+  /* —— 扣费：三选一，且**只在一个地方扣** —— */
+  if (useCoupon)       save.coupons = (save.coupons || 0) - 1;
+  else if (pay === 'jp') save.jianpo = (save.jianpo || 0) - costJp;
+  else                 save.coins = (save.coins || 0) - cost;
+  const item = { k:r.k, v:r.v };
+  if (filling) cur.push(item); else cur[cur.length - 1] = item;
+  g.charm = cur;
+  g.charmRolls = rolls + 1;
+  /* 保底计数器：出了高值就归零，否则累计 —— 到 CHARM_PITY 时 rollCharm 会强制高值 */
+  g.charmPity = r.high ? 0 : (g.charmPity || 0) + 1;
+  saveGame();
+  return { ok:true, filled:filling, k:item.k, v:item.v, line:charmLine(item),
+           spent: useCoupon ? '淬炼折扣券 ×1' : (pay === 'jp' ? (costJp + ' 剑魄') : (cost + ' 灵石')),
+           forced:!!r.forced, high:!!r.high, cost:cost, costJp:costJp, coupon:useCoupon };
+}
+/* 「洗十次」：全部成功才把总价退回 5%（给一点"赌"的暗示，也补偿批量操作）。
+   ★ 必须是**十次独立判定**（保底计数器逐次推进），不能抽一次复制十份 ——
+     那样保底机制会彻底失效。
+   ★ 券模式不支持"洗十次"：券是"一次免费"的语义，十连会把它变成"十次免费"。
+     券不足时前几次用券、后面自动落回灵石 —— 由调用方决定，这里只管逐次调用。 */
+function charmDo10(g, pay) {
+  const before = pay === 'jp' ? (save.jianpo || 0) : (save.coins || 0);
+  const list = [];
+  for (let i = 0; i < 10; i++) {
+    const r = charmDo(g, pay);
+    list.push(r);
+    if (!r.ok) break;
+  }
+  const now = pay === 'jp' ? (save.jianpo || 0) : (save.coins || 0);
+  const spent = before - now;
+  const okN = list.filter(r => r.ok).length;
+  let refund = 0;
+  if (okN >= 10 && spent > 0) {
+    refund = Math.floor(spent * 0.05);
+    if (refund > 0) {
+      if (pay === 'jp') save.jianpo += refund; else save.coins += refund;
+      saveGame();
+    }
+  }
+  return { list:list, okN:okN, spent:spent - refund, refund:refund,
+           last:list[list.length - 1] || { ok:false, msg:'无' } };
 }
 
 /* ---------------- 掉落 ---------------- */
@@ -3148,9 +3652,15 @@ const GEAR_TIER_ANCHOR = [
    不是「只有凡/良」。这 4% 是有意留的 —— 新手第一关开出一件上品，
    是「品质会随关卡提升」这条曲线的**起点证据**；真正要守住的下界是
    「第 1 关不出灵品及以上」（灵/仙/神权重均为 0），测试按这条口径断言。 */
-function gearTierWeights(lvIdx, boss) {
+/* ★ `tierBonus` = V3.0 淬炼词条「剑 运」的落点：把品阶权重整体**右移**。
+   实现方式是抬高插值位置 t（每点 +0.06 t，封顶 +0.35）——
+   而不是直接改权重数组。理由：权重表有"单增约束"（见下面的逐项检查），
+   直接加减权重很容易打破它；抬高 t 则天然落在两个合法锚点之间，约束自动保持。
+   ★ 默认值 0 = **与改动前逐字节相同的行为**（test_drop.py 的口径不受影响）。 */
+function gearTierWeights(lvIdx, boss, tierBonus) {
   const span = Math.max(1, LEVELS.length - 1);
-  const t = Math.max(0, Math.min(1, (lvIdx || 0) / span));
+  const tb = Math.min(0.35, Math.max(0, (tierBonus || 0) * 0.06));
+  const t = Math.max(0, Math.min(1, (lvIdx || 0) / span + tb));
   const f = t * (GEAR_TIER_ANCHOR.length - 1);
   const i0 = Math.min(GEAR_TIER_ANCHOR.length - 2, Math.floor(f));
   const fr = f - i0;
@@ -3163,19 +3673,20 @@ function gearTierWeights(lvIdx, boss) {
        魔将仍然是**最高效的高阶来源**，但不再破坏仙/神的稀有度。 */
   return [W[0] * 0.15, W[1] * 0.45, W[2] * 0.85, W[3] * 1.35, W[4] * 1.8, W[5] * 3.0];
 }
-function rollGearTier(lvIdx, boss, rnd) {
-  const W = gearTierWeights(lvIdx, boss);
+function rollGearTier(lvIdx, boss, rnd, tierBonus) {
+  const W = gearTierWeights(lvIdx, boss, tierBonus);
   let tot = 0; for (const w of W) tot += w;
   let r = (rnd || Math.random)() * tot;
   for (let i = 0; i < W.length; i++) { r -= W[i]; if (r <= 0) return i; }
   return 0;
 }
 /* 掉一件：部位与品阶都随机，返回装备对象（尚未落袋）。
-   lvIdx 传的是**全局关卡索引**（不是章索引）—— 这是「品质随关卡提升」的输入。 */
-function dropGear(lvIdx, boss, rnd) {
+   lvIdx 传的是**全局关卡索引**（不是章索引）—— 这是「品质随关卡提升」的输入。
+   `tierBonus` 由调用方从 `P.charmTier` 传进来（剑运词条），默认 0。 */
+function dropGear(lvIdx, boss, rnd, tierBonus) {
   rnd = rnd || Math.random;
   const slot = GEAR_SLOTS[(rnd() * GEAR_SLOTS.length) | 0].k;
-  return rollGear(slot, rollGearTier(lvIdx, boss, rnd), rnd);
+  return rollGear(slot, rollGearTier(lvIdx, boss, rnd, tierBonus), rnd);
 }
 
 /* ---------------- 落袋 / 穿戴 / 卸下 / 分解 ---------------- */
@@ -3268,7 +3779,15 @@ const DEFAULT_SAVE = {
   items:{ potion:0, shield:0, rage:0 },
   signDate:'', signStreak:0, signTs:0,
   opt:{ shake:true, fps:false, sfx:true, bgm:true, quality:'std' },
-  stats:{ plays:0, kills:0, bestLevel:0, bestStar:0, coins:0, soldGear:0, jianpoTotal:0 },
+  /* ★ V3.0 新增字段说明（为什么要抬 SAVE_VER，见 02_data.js）：
+       coupons   = 淬炼折扣券张数（魔将连战第 5/10/15 轮给，一次淬炼免费）
+       weekTag   = 本机 ISO 周标识；跨周时重置无尽妖潮的周榜与首达里程碑
+       legacyComp= **历史遗留字段**（V3.0 中途口径的痕迹，现已不参与计算 ——
+                   补偿改成了无状态的 progressComp()，见 02_data.js）
+       stats.milestone = 副本"只发一次"档位的落盘表（防刷新重复领） */
+  coupons:0, weekTag:'', legacyComp:null,
+  stats:{ plays:0, kills:0, bestLevel:0, bestStar:0, coins:0, soldGear:0, jianpoTotal:0,
+          milestone:{} },
 };
 let save = null;
 function deepMerge(base, patch) {
@@ -3293,23 +3812,25 @@ function loadSave() {
      deepMerge 会把缺失字段补成默认值，合并之后就再也看不出「这是老档」了
      （默认值里 story.beat 是空对象，和老档补齐后的样子完全一致）。
      详见 02_data.js 的 SAVE_VER 注释。 */
-  if (!parsed || !(parsed.ver >= SAVE_VER)) migrateStoryBeats();
-  /* ★ 审计 A0-1 的同族补丁：`story` **整块缺失**也是"需要迁移"的明确证据。
-     为什么不能直接无条件跑 migrateStoryBeats()：那会把「刚通关第 1 节的新档」
-     也当成老档，把这一节该播的解锁演出预先标成"已播" ——
-     症状是「打完第 1 节什么都没发生」，test_unlock 的 ⑥b 专门钉着它。
-     但「story 整块不存在」和「beat 是空对象」是两件不同的事：
-       新档的 DEFAULT_SAVE 里 story 一定**存在**（只是 beat 为空）,
-       所以拿 `!parsed.story` 做判据既能覆盖异常档，又不会误伤新档。
-     代价：这是一个"版本号是新的、但内容缺一块"的档——
-     只靠 ver 判不出来，和 bestLevel 那条是同一类问题。 */
-  else if (parsed && !parsed.story) migrateStoryBeats();
-  /* ★ 进度兜底**无条件跑**（不像上面那条要看版本号）：
-     它修的不是"老档格式变了"，而是"任何来路的档都可能缺 stats" ——
-     版本号判不出来（新档也可能因为异常写入丢字段），而它是**幂等**的
-     （对健康档重算结果完全相同），所以每次开机都跑一遍最稳。
-     详见 02_data.js migrateProgress 的注释（这条对应审计 A0-1：可致永久卡关）。 */
+  /* ★ 顺序是刻意的：进度兜底**必须先跑** ——
+     进度补偿 `progressComp()` 要按 `stats.bestLevel` 算金额，
+     而 bestLevel 正是被 migrateProgress 修的那个字段。
+     先补偿后兜底 = 用"可能为 0 的 bestLevel"算出 0 元补偿。
+     （它现在是无状态函数、每次读档重算，所以不存在"算错就永久错"的问题；
+       这条顺序留着的价值是：未来若把补偿重新做成**落盘快照**，顺序必须还是这样。） */
   migrateProgress();
+  if (!parsed || !(parsed.ver >= SAVE_VER)) migrateStoryBeats();
+  /* ★ `story` **整块缺失**是"需要迁移"的另一条独立证据（版本号是新的却缺一块）。
+     判据用 `!parsed.story` 而不是 `!parsed.story.beat`：
+       DEFAULT_SAVE 里 story **一定存在**（只是 beat 为空），
+       所以"story 不存在"只可能是异常档，既能覆盖它、又不会误伤刚建的新档。
+     不能改成无条件跑 migrateStoryBeats()：那会把「刚通关第 1 节的新档」
+     也当成老档，把这一节该播的解锁演出预先标成"已播" ——
+     症状是「打完第 1 节什么都没发生」，test_unlock 的 ⑥b 专门钉着它。 */
+  else if (parsed && !parsed.story) migrateStoryBeats();
+  /* 周更：跨周则重置无尽妖潮的周榜与首达里程碑（本作唯一的周期性回访钩子）。
+     放在最后、且**无条件跑** —— 它判的是"今天是不是新的一周"，与存档版本无关。 */
+  if (rollWeekIfNeeded()) saveGame();
   resyncRealm();
 }
 /* 境界迁移（2026-09-24 境界体系重排时必须做）
@@ -3351,14 +3872,39 @@ const HERO_BASE = { hp:130, atk:11, speed:192, crit:0.05, pick:78 };
 const EXP_BASE_NERF = 0.85;      // 第一刀：−15%
 const EXP_STEP_NERF = 0.85;      // 第二刀：在现有基础上再 −15%
 const EXP_NERF = EXP_BASE_NERF * EXP_STEP_NERF;   // 0.7225 → 累计 −27.75%
-function acctLv() { return 1 + Math.floor(save.xiuwei / 260); }
+/* ---------------- 账号等级（V3.0 ③：曲线压平） ----------------
+   旧式 `1 + ⌊修为/260⌋` 是**线性**的，40 关全通时修为 ~101,660 →
+   acctLv = 392，直接给 **+2352 气血 / +392 攻击 / +392 移速**，
+   把这个游戏的难度曲线整个稀释掉了（"越玩越简单"的根源）。
+   实测三个点：修为 20,000 → 旧 78；60,000（满境）→ 旧 231；101,660 → 旧 392。
+
+   新式改成**幂函数** `1 + ⌊(修为/260)^0.6⌋`：
+     260 → 2（不变）｜5,200 → 7（旧 21）｜20,000 → 15（旧 78）
+     60,000 → 28（旧 231）｜101,660 → 36（旧 392）
+   ★ 为什么要幂函数而不是"除以一个更大的数"：
+     线性缩放的形状不变，只是把整条线压低 —— 那会让**前中期也一起变弱**，
+     玩家在第 5 关就感到"我怎么升不动了"。
+     幂函数把压制**集中在后期**：低修为段几乎不动（260 → 都是 2），
+     高修为段才被压 —— 正好抵消"后期修为产出爆炸"这个真实原因。
+   ★ 验收口径：40 关终局落在 **Lv.30 ~ Lv.40**（实测 36）。
+   ★ 老玩家的补偿走 progressComp()，见 02_data.js。 */
+function acctLv() { return 1 + Math.floor(Math.pow((save.xiuwei || 0) / 260, 0.6)); }
 function heroStats() {
   const ev = save.equip, L = acctLv() - 1, g = save.realmIdx;
+  /* 进度补偿（V3.0 ③）：按**历史最高关**实时计算，对所有存档一视同仁。
+     为什么不是"只发给老档的快照"—— 见 02_data.js 的 progressComp，那里有三份实测数据。 */
+  const lc = progressComp();
+  /* ★ 散仙乘区（V3.0 ②）：**独立第三层**，与角色加成同级。
+     放在末尾一次性乘完 —— 不并入 P.atkMul（那是局内技能的乘区），
+     否则会和疾风剑诀 / 血怒叠乘，在散仙十几重时滚成雪球。
+     注意 pick（拾取范围）**不吃**散仙：它是手感参数，放大会让灵气吸附半径
+     大到"整个屏幕自动收菜"，破坏走位乐趣。 */
+  const sx = sanxianMul();
   return {
-    maxHp: HERO_BASE.hp + g * 14 + ev.neidan * 22 + L * 6,
-    atk:   HERO_BASE.atk + g * 1.5 + ev.swordbox * 3 + L * 1,
-    speed: HERO_BASE.speed + ev.boots * 3.5 + L * 1,
-    crit:  HERO_BASE.crit + ev.lingxi * 0.012,
+    maxHp: Math.round((HERO_BASE.hp + g * 14 + ev.neidan * 22 + L * 6 + lc.hp) * sx),
+    atk:   (HERO_BASE.atk + g * 1.5 + ev.swordbox * 3 + L * 1 + lc.atk) * sx,
+    speed: (HERO_BASE.speed + ev.boots * 3.5 + L * 1 + lc.spd) * sx,
+    crit:  (HERO_BASE.crit + ev.lingxi * 0.012) * sx,
     pick:  HERO_BASE.pick + ev.lingxi * 7,
   };
 }
@@ -3870,6 +4416,8 @@ function makeParams() {
        penChance = 穿透概率（每次命中按此概率多穿 1 个目标） */
     drFlat:0, drPct:0, penChance:0,
     tra:{},                                    // 神品特效标志位（applyGear 填充）
+    /* 淬炼词条（V3.0）：killHeal = 每只击杀固定回血；charmTier = 剑运的品阶权重右移量 */
+    killHeal:0, charmTier:0,
     thunderLv:0, rainLv:0, auraLv:0, reviveLv:0,
     /* 修为获取：初值 = 历史两刀（−27.75%，两次 −15% 叠乘，见 EXP_NERF）×
        本版新增的**密度补偿**（EXP_DENSITY_NERF，见 02_data.js）。
@@ -3952,7 +4500,7 @@ function applyGear() {
   if (B.pct.exp)  P.expMul *= (1 + B.pct.exp);
   P.drPct = B.pct.dr;
   P.penChance = Math.min(0.75, B.pct.pen);
-  /* —— 被动：并进同名参数 —— */
+  /* —— 装备被动：并进同名参数 —— */
   const q = B.pas;
   if (q.lifesteal) P.lifesteal += q.lifesteal;
   if (q.armor)     P.armor     += q.armor;
@@ -3966,6 +4514,17 @@ function applyGear() {
   if (q.chain)     P.chain     += q.chain;
   if (q.pierce)    P.pierce    += q.pierce;
   if (q.berserkLv) P.berserkLv += q.berserkLv;
+  /* —— 淬炼词条（V3.0）：全部走**独立累加项**，见 07_gear.js 的说明 ——
+     为什么不像被动那样直接 `+=` 到 P 上：这六条里 aspd / pick 是**乘区型**参数，
+     而淬炼可无限重复 —— 累加后再兜一次总上限（CHARM_CAP）才不会滚雪球。 */
+  const ch = B.charm;
+  if (ch.aspd)     P.cdMul  /= (1 + ch.aspd);     // 攻速是间隔的倒数
+  if (ch.critDmg)  P.critDmg += ch.critDmg;
+  if (ch.blast)    P.blast   += ch.blast;
+  if (ch.pick)     P.pick    *= (1 + ch.pick);
+  if (ch.killHeal) P.killHeal += ch.killHeal;
+  /* 剑运不落在 P 的数值上，而是给掉落用的"品阶权重右移量" */
+  P.charmTier = ch.tier;
   /* —— 神品特效：只置标志位，逻辑挂在各自的战斗钩子上 —— */
   P.tra = B.tra;
   P.chanaN = 0;              // 刹那芳华：出剑计数
@@ -4588,7 +5147,7 @@ function gainGear(g) {
 }
 function tryDropGear(force) {
   if (!force && Math.random() > 0.08) return null;
-  const g = gainGear(addGear(dropGear(gearProgressIdx(), false)));
+  const g = gainGear(addGear(dropGear(gearProgressIdx(), false, null, P.charmTier)));
   const T = gearTierOf(g);
   toast('拾得 ' + T.n + '　' + g.nm + '（' + gearSlotOf(g.slot).n + '）　强度 ' + gearScore(g), T.c);
   SFX.gear(g.ti);        // 编钟响数 = 品阶 + 1（品阶是「听得出来」的，见 06_audio.js）
@@ -4819,6 +5378,13 @@ function killMob(m) {
     orbs.push({ x:m.x + (Math.random() - 0.5) * 30, y:m.y + (Math.random() - 0.5) * 30,
                 v:val, pulled:false });
   G.coins += Math.round(m.coin * (1 + G.lvIdx * 0.35));   // 灵石收益随关卡放大，保证局外成长跟得上
+  /* 淬炼词条「剑 噬」：每只击杀固定回血（V3.0）。
+     ★ 放在**掉符之前、修为之前**的位置无所谓顺序，但必须放在 `m.dead = true` 之后 ——
+       否则同一只怪被两次命中时会回两次血。
+     ★ 与「饮血」被动的区别：饮血是**按伤害的百分比**（大剑大回血、小剑小回血），
+       剑噬是**按只数**（小怪也能稳定续命）。两者刻意不做成同一条，否则淬炼就没有独立价值。 */
+  if (P.killHeal > 0 && hero.hp > 0)
+    hero.hp = Math.min(hero.maxHp, hero.hp + P.killHeal);
   /* 局外修为：`m.exp` 是每只怪的**原始**修为，这条通路**不走 P.expMul** ——
      所以密度补偿必须在这里单独乘一次（漏了它就是"怪多了、局外修为白涨一倍"）。
      ★ 与 P.expMul 是同一笔口径，务必同进同出：只改其中一处，
@@ -4832,7 +5398,7 @@ function killMob(m) {
   }
   /* 魔将必掉装备，而它走的是「品阶上抬」那套权重（见 gearTierWeights） */
   if (m.boss) {
-    const g = gainGear(addGear(dropGear(gearProgressIdx(), true)));
+    const g = gainGear(addGear(dropGear(gearProgressIdx(), true, null, P.charmTier)));
     const T = gearTierOf(g);
     toast('魔将遗宝 ' + T.n + '　' + g.nm + '　强度 ' + gearScore(g), T.c);
     SFX.gear(g.ti);
@@ -5827,8 +6393,10 @@ function drawHero() {
     hero.atkDx = Math.cos(hero.atkAng) * push;
     hero.atkDy = Math.sin(hero.atkAng) * push * 0.45;
   } else { hero.atkDx = 0; hero.atkDy = 0; }
-  /* —— 境界阶段：体型最多成长 20%（凡尘 1.00 → 大乘/渡劫 1.20） —— */
-  const stage = realmStage(save.realmIdx);
+  /* —— 境界阶段：体型最多成长 20%（凡尘 1.00 → 大乘/渡劫 1.20） ——
+     ★ V3.0 ⑤：改走 realmStageOf(当前角色) —— 道友的成长幅度打 6 折，
+       灵光与法阵不变。见 02_data.js 的 CHAR_REALM_K 说明。 */
+  const stage = realmStageOf((save && save.char) ? save.char.cur : 'main');
   ctx.save();
   ctx.translate(hero.x + hero.atkDx, hero.y + bob + hero.atkDy);
   /* 筑基期以上：脚下旋转法阵 */
@@ -6375,8 +6943,12 @@ function drawHUD() {
   };
   hudPanel(22, 22, VW - 44, 120);
 
+  /* ★ V3.0 ⑦：左上角原来**并排两个标签** —— 境界名（凡人 / 炼气期三层…）与
+     「修为 N 重」（局内等级）。两者都在讲"修行到哪一步了"，且后者的「修为」一词
+     与下方那条**真正的修为进度条**（G.exp）撞词，读起来像同一件事说了两遍。
+     按用户口径只留一个：留**境界名**（它在这一整场战斗里只出现这一次，是身份）；
+     局内等级本来就有三处反馈 —— 升级弹字、修为条读数、底栏功法层数徽章。 */
   txtS(realmName(save.realmIdx), 40, 68, 'bold 36px "Songti SC",serif', '#ffe9b0', 'left', 5);
-  txtS('修为 ' + numCn(G.level) + ' 重', 258, 68, 'bold 28px "Songti SC",serif', '#8fe3c8', 'left', 5);
   txtS('斩妖 ' + G.kills + '　灵石 ' + (save.coins + G.coins), 40, 104,
        'bold 22px "Songti SC",serif', '#e8eef6', 'left', 4);
   /* 右上角整块留给「暂停」按钮，此处不再排字（角色名已移至底部血条上方） */
@@ -8078,9 +8650,7 @@ function renderQuickLevels() {
       /* 节号：每章各自从 1 起（第二章第一节就是 1，不是 11） */
       '<div class="lvq-ic"><span>' + L.sec + '</span><small>节</small></div>' +
       '<div class="lvq-tx"><b>' + L.n + '</b><small>' + sub + '</small>' +
-      '<small class="stars">' + (ok
-        ? (st ? '★'.repeat(st) + '☆'.repeat(3 - st) + '　可重打' : '未通关')
-        : '通关上一节后解锁') + '</small>' +
+      '<small class="stars">' + lvStateHTML(!ok, st) + '</small>' +
       (L.boss >= 0 ? (() => {
         const seen = !!(save.bossSeen && save.bossSeen[L.boss]);
         return '<small class="lvq-boss" data-act="bossdoc" data-i="' + L.boss + '">魔将 · ' +
@@ -8097,14 +8667,40 @@ function renderQuickLevels() {
 function renderRealm() {
   const cur = save.realmIdx, stage = realmStage(cur);
   el['rm-cur'].textContent = realmName(cur);
+  const sx = sanxianLv();
+  const full = cur >= REALMS.length - 1;         // 是否已满境（渡劫·后期）
   let h = '';
   h += '<div class="kv"><span>当前境界</span><b style="color:' + stage.c + '">' +
        realmName(cur) + '</b></div>' +
        '<div class="kv"><span>外观阶段</span><b style="color:' + stage.c + '">' + stage.n +
        '　体型 ×' + stage.scale.toFixed(2) + '</b></div>' +
-       '<div class="kv"><span>累计修为</span><b>' + Math.floor(save.xiuwei) + '</b></div>' +
-       '<div class="hint">境界分' + REALM_STAGES.length + '个外观阶段（凡尘 → 炼气 → 筑基 → … → 大乘渡劫）：'
-       + '境界越高，角色体型与身周灵光越盛（最大 +20%），筑基期以上脚下另有法阵。</div>';
+       '<div class="kv"><span>累计修为</span><b>' + Math.floor(save.xiuwei) + '</b></div>';
+  /* ★ V3.0 散仙循环层：满境之后修为继续累积进「散仙」——
+     满境后**永远有用**是这一代要解决的核心问题（旧版满境后四成修为白白扔掉）。
+     展示上刻意分两种口径：
+       · 还没满境 → 只报"距散仙还差多少"，不显示重数（此时恒为 0，显示"散仙·零重"很怪）；
+       · 已满境   → 切换成循环层读数（重数 / 全属性加成 / 距下一重）。 */
+  if (full || sx > 0) {
+    const bonus = Math.round(sx * SANXIAN_PER * 100);
+    h += '<div class="rl-row cur" style="border-color:rgba(255,217,107,.5)">' +
+      '<span class="rl-dot" style="background:#ffd96b"></span>' +
+      '<span class="rl-nm">' + (sx > 0 ? sanxianName() : '散 仙 · 未 入') + '</span>' +
+      '<span class="rl-need">' + (sx > 0
+        ? ('全属性 +' + bonus + '%<br>距下一重还差 ' + Math.ceil(sanxianNext()))
+        : ('满境后自动进入循环层<br>还差 ' + Math.ceil(sanxianNext()) + ' 修为')) +
+      '</span></div>';
+  } else {
+    h += '<div class="hint">满境（' + realmName(REALMS.length - 1) + '）之后，修为继续累积进入' +
+         '「散仙」循环层：每 ' + SANXIAN_NEED.toLocaleString() + ' 修为一重、' +
+         '每重全属性 +' + Math.round(SANXIAN_PER * 100) + '%，<b>无上限</b>。</div>';
+  }
+  const titles = sanxianTitles();
+  if (titles.length)
+    h += '<div class="hint">已获散仙称号：' + titles.join(' · ') + '</div>';
+  h += '<div class="hint">境界分' + REALM_STAGES.length + '个外观阶段（凡尘 → 炼气 → 筑基 → … → 大乘渡劫）：'
+       + '境界越高，角色体型与身周灵光越盛（最大 +20%），筑基期以上脚下另有法阵。'
+       + '七位道友同样享受这套外观（体型幅度打 6 折，灵光与法阵照给）。'
+       + '<b>散仙不再改变外观</b> —— 体型无限放大会变成占满屏幕的色块。</div>';
   REALMS.forEach((r, i) => {
     const got = i <= cur;
     const si = realmStageIdx(i);
@@ -8207,6 +8803,17 @@ function setDifficulty(k) {
   renderLevels();
   domToast('难度 · ' + D.n + '　' + D.d);
 }
+/* ★ V3.0 ⑦：关卡状态的**图标色标**（唯一出口）。
+   原来每一关都印一遍「未通关」—— 10 关重复 10 次，而右侧按钮才是真信息；
+   玩家扫视时先看到 10 个同样的否定词，等于什么都没说。
+   换色标后：✓ 已通关 / ★ 星级 / ● 可挑战 / 🔒 未解锁，一眼扫完一列就知道该打哪关。
+   ★ 两个列表（秘境试炼 / 继续修行）共用这一个出口 —— 各写一遍必然走样。 */
+function lvStateHTML(locked, st) {
+  if (locked) return '<i class="lg lg-lock">🔒</i>未解锁';
+  if (st > 0) return '<i class="lg lg-ok">✓</i>已通关<i class="lg lg-st">' +
+                     '★'.repeat(st) + '☆'.repeat(3 - st) + '</i>';
+  return '<i class="lg lg-go">●</i>可挑战';
+}
 function renderLevels() {
   el['lv-coin'].textContent = '灵石 ' + save.coins;
   let h = diffBarHTML();
@@ -8229,8 +8836,7 @@ function renderLevels() {
     h += '<div class="row' + (locked ? ' lock' : '') + '">' +
       '<div class="row-ic sec"><span>' + L.sec + '</span><small>节</small></div>' +
       '<div class="row-tx"><b>' + L.n + '</b><small>' + sub + '</small>' +
-      '<small class="stars">' + (locked ? '通关上一节后解锁'
-        : (st ? '★'.repeat(st) + '☆'.repeat(3 - st) + '　通关（可重打）' : '未通关')) + '</small>' +
+      '<small class="stars">' + lvStateHTML(locked, st) + '</small>' +
       bossLn + '</div>' +
       '<div class="row-act">' + (locked
         ? '<button class="mini gray" disabled>未解锁</button>'
@@ -8323,9 +8929,23 @@ function renderChars() {
     const isCur = C.k === cur.k;
     const open = i === charOpen;
     const fs = faceSrc(C);
+    /* ★ V3.0 ⑤：道友录缩略图**也必须体现境界** ——
+       世界里已给道友叠了灵光与脚下法阵，面板里若还是老样子，
+       玩家切换出战角色时会"看不出这个人和主角一样强"，一致性等于没做。
+       ★ 未结缘不显示（尚未继承主角境界，此刻谈境界是错的）。
+       ★ 外发光用 box-shadow：`.chc-face` 的 `overflow:hidden` 只裁子元素、不影响外阴影；
+         `ring` 为真时补一层 inset 描边 —— 那是在缩略图尺度上"脚下法阵"的等价表达。 */
+    const rs = realmStageOf(C.k);
+    const gA = owned ? rs.glow : 0;
+    const faceSty = 'border-color:' + C.c + ';' + (gA > 0
+      ? 'box-shadow:0 0 ' + Math.round(7 + gA * 17) + 'px ' + Math.round(gA * 2) + 'px ' +
+        hexA(rs.c, +(0.22 + gA * 0.50).toFixed(2)) +
+        (rs.ring ? ',inset 0 0 0 1px ' + hexA(rs.c, +(0.28 + gA * 0.42).toFixed(2)) : '')
+      : '');
     h += '<div class="chc' + (owned ? '' : ' lock') + (isCur ? ' cur' : '') + '"' +
          ' data-act="chardoc" data-i="' + i + '">' +
-      '<div class="chc-face" style="border-color:' + C.c + '">' +
+      '<div class="chc-face" data-rg="' + (gA > 0 ? rs.n.replace(/\s+/g, '') : '') +
+        '" style="' + faceSty + '">' +
         (fs ? '<img src="' + fs + '" alt="" class="' + (owned ? '' : 'silh') + '">'
             : '<span class="chc-ic" style="color:' + C.c + '">' + icOf(C.k === 'main' ? 'sword' : 'seal', 30) + '</span>') +
         (owned ? '' : '<span class="chc-lk">未结缘</span>') +
@@ -8333,7 +8953,12 @@ function renderChars() {
       '</div>' +
       '<div class="chc-tx">' +
         '<b style="color:' + C.c + '">' + C.n +
-          '<span class="chc-role">' + C.role + '</span></b>' +
+          '<span class="chc-role">' + C.role + '</span>' +
+          /* 境界徽标：与世界的灵光同名同色。放在名字行而不是压在立绘上 ——
+             62px 的方框已经有三处角标（未结缘 / 在战），再挤会看不清。 */
+          (gA > 0 ? '<span class="chc-rg" style="color:' + rs.c + '">' +
+                    rs.n.replace(/\s+/g, '') + '</span>' : '') +
+        '</b>' +
         /* 第一行给「这个人值不值得等」：能力值未结缘也照给，不用藏；
            第二行才说解锁条件 —— 两行各说一件事，不重复同一句话。 */
         '<small>' + C.ab + '</small>' +
@@ -8355,7 +8980,7 @@ function renderChars() {
         /* 境界由主角处继承：结缘不需要重新修炼，等级 / 剑匣 / 丹药一律通用 */
         '<div class="chd-row"><span>境 界</span><b>' + realmName(save.realmIdx) +
           '<span style="color:#8d8574">（继承主角，八人共享）</span></b></div>' +
-        '<div class="chd-row"><span>造 型</span><b><span style="color:#8d8574">固定造型，不随境界改变外观</span></b></div>' +
+        '<div class="chd-row"><span>造 型</span><b><span style="color:#8d8574">固定造型 · 灵光与脚下法阵仍随境界增长（道友幅度打 6 折）</span></b></div>' +
         '<div class="chd-row"><span>能 力</span><b class="' + (owned ? '' : 'dim') + '">' +
           (owned ? C.ab : '未解锁（' + C.ab + '）') + '</b></div>' +
         '<div class="chd-sec">固有技能与百分比加成（独立第三层，只乘数值、不改弹道形态）</div>' +
@@ -8473,6 +9098,38 @@ function gearItemHTML(g) {
     '" style="' + gearColorVars(T) + '">' +
     '<img src="' + gearSrc(g.slot) + '" alt=""><i>' + T.n + '</i></button>';
 }
+/* ---------------- 淬炼区（V3.0 ①） ----------------
+   ★ 只对**已穿戴**的装备开放（`from === 'worn'`）：
+     淬炼是"往身上这件投钱"，如果行囊里也能洗，玩家会先在行囊里择优再穿戴，
+     变成"洗十件挑一件"——那是抽卡，不是养成。锁在穿戴态上，意图才清楚。 */
+function gearCharmHTML(g, from) {
+  if (from !== 'worn') return '';
+  const n = charmCount(g.ti);
+  if (n <= 0)
+    return '<div class="gr-grp"><em>淬 炼</em>' +
+      '<div class="chm-hint">凡品 / 良品无灵性 —— 须 <b>上品及以上</b> 方可淬炼。</div></div>';
+  const cur = g.charm || [], rolls = g.charmRolls || 0;
+  const cost = charmCost(rolls), costJp = charmCostJp(rolls);
+  const pity = g.charmPity || 0;
+  let h = '<div class="gr-grp"><em>淬 炼　' + cur.length + ' / ' + n + '</em><ul>';
+  if (cur.length) cur.forEach(c => { h += '<li class="chm">' + charmLine(c) + '</li>'; });
+  else h += '<li class="chm-none">尚未淬炼 —— 洗一次即开出第一条词条</li>';
+  h += '</ul>';
+  h += '<div class="chm-hint">已洗 ' + rolls + ' 次　下次 <b>' + cost + '</b> 灵石';
+  if (pity > 0)
+    h += '　·　连续 ' + pity + ' 次未出高值，再有 <b>' + Math.max(0, CHARM_PITY - pity) + '</b> 次必出';
+  h += '</div>';
+  h += '<div class="chm-bar">' +
+    '<button data-act="charm" data-n="1">洗一次 · ' + cost + '</button>' +
+    '<button class="ten" data-act="charm" data-n="10">洗 十 次（−5%）</button>' +
+    '<button class="jp" data-act="charm" data-n="1" data-pay="jp">剑魄 ' + costJp + ' 枚</button>' +
+    (save.coupons > 0
+      ? '<button class="cp" data-act="charm" data-n="1" data-pay="coupon">折扣券 ×' + save.coupons + '</button>'
+      : '') +
+    '</div>';
+  h += '<div class="chm-hint">词条只在<b>已穿戴</b>时生效；「剑 运」是唯一影响掉落的词条。</div>';
+  return h + '</div>';
+}
 function gearDetailHTML(g, from) {
   if (!g)
     return '<div class="gr-card gr-none"><span>点上方部位查看已佩戴的法宝，或点下方行囊里的法宝看详情</span></div>';
@@ -8498,6 +9155,7 @@ function gearDetailHTML(g, from) {
          pas.map(x => '<li>' + x + '</li>').join('') + '</ul></div>';
   if (tra)
     h += '<div class="gr-grp"><em>专 属 特 效</em><ul><li class="tra">' + tra + '</li></ul></div>';
+  h += gearCharmHTML(g, from);          // V3.0：淬炼区（只对已穿戴装备出现）
   h += '<div class="gr-brief">' + g.brief + '</div>';
   h += '</div><div class="gr-c-act">';
   h += (from === 'bag')
@@ -8568,6 +9226,30 @@ function gearDoSell() {
   domToast('分解 ' + g.nm + '　灵石 +' + v);
 }
 function gearToggleSort() { gearSortByPower = !gearSortByPower; renderGear(); }
+/* 淬炼按钮的处理。★ 几件事必须一起做，漏一件就是一个可见的坑：
+     ① 只认「当前选中的**已穿戴**装备」—— 行囊里的不能洗（见 gearCharmHTML 的理由）；
+     ② 洗之前先 `saveGame()`（charmDo 内部已经落盘），洗之后要 `refreshLobby()`
+        —— 因为灵石/剑魄余额变了，大厅顶栏那一排数字必须跟着动；
+     ③ 无论成功失败都要**重新渲染详情卡**（词条、次数、保底计数都变了）。 */
+function gearDoCharm(n, pay) {
+  if (!gearPick || gearPick.src !== 'worn') return;
+  const g = wornGear(gearPick.slot);
+  if (!g) return;
+  const many = (n >= 10);
+  const r = many ? charmDo10(g, pay) : charmDo(g, pay);
+  if (many) {
+    if (r.okN <= 0) { domToast(r.last.msg || '淬炼失败'); return; }
+    /* 十连只播报**最后一条** + 汇总 —— 十条逐条弹会盖满屏幕，玩家反而看不到结果 */
+    domToast('淬炼 ×' + r.okN + '　' + (r.last.line || '') +
+             '　花费 ' + r.spent + (r.refund ? '（含 −5% 回馈 ' + r.refund + '）' : ''));
+    SFX.gear(g.ti);
+  } else {
+    if (!r.ok) { domToast(r.msg || '淬炼失败'); return; }
+    domToast('淬炼 · ' + r.line + '　花费 ' + r.spent + (r.forced ? '　（保底生效）' : ''));
+    SFX.gear(g.ti);
+  }
+  renderGear(); refreshLobby();
+}
 
 /* ---------------- 功法（主修武器） ---------------- */
 function renderSkill() {
@@ -9299,12 +9981,11 @@ function endBattle(win) {
     xiuGain += (G.bossKilled || 0) * 200;
   }
 
-  /* —— 残缺剑魄（V2.0）：失败也有产出 ——
-     ★ 只在**主线关卡**结算时发一次。副本没有"节次"（公式里的 lvIdx 是个陈旧值），
-       所以副本产剑魄是 V3.0 的事，这一版不碰。
-     ★ 位置放在 mode 分支之后、统一写盘之前：它和灵石/修为是同一笔落盘，
-       不存在"发出去了但没存住"的窗口（结算中途刷新也不会重复发，
-       因为 endBattle 有 G.scene/lootPending 双重防重入）。 */
+  /* —— 残缺剑魄 ——
+     ★ V2.0：只发**主线关卡**（副本没有"节次"，公式里的 lvIdx 是个陈旧值）。
+     ★ V3.0：副本那一路补上了，但走的是**另一套规则**（dungeonReward）——
+       副本用"首达里程碑"而不是"节次基数"，因为副本没有节次可依。
+       两条线共用同一个货币与同一个余额字段，所以这里不能并行发两份。 */
   let jianpoGet = 0;
   if (G.mode === 'level') {
     jianpoGet = jianpoGain(win, G.kills, G.lvIdx);
@@ -9313,6 +9994,11 @@ function endBattle(win) {
       save.stats.jianpoTotal = (save.stats.jianpoTotal || 0) + jianpoGet;
     }
   }
+  /* —— 副本长线产出（V3.0 ④）：首达里程碑给剑魄，且**已落盘**（防刷新重复领） ——
+     ★ 与主线那笔互斥（if / else if 的两条支路），不会重复计入。
+     ★ dungeonReward() 直接改 save（余额 + milestone 落盘），下面统一 saveGame() 写出去。 */
+  let dungeonGain = [];
+  if (G.mode !== 'level') dungeonGain = dungeonReward();
 
   const before = save.realmIdx;
   save.coins += coinGain; save.xiuwei += xiuGain;
@@ -9338,6 +10024,11 @@ function endBattle(win) {
   rows.push(['获得灵石', '+' + coinGain]);
   rows.push(['获得修为', '+' + xiuGain]);
   if (jianpoGet > 0) rows.push(['残缺剑魄', '+' + jianpoGet + (win ? '（通关半额）' : '')]);
+  /* 副本产出（V3.0 ④）：逐条播报，**不静默加数字** ——
+     玩家必须看见"打到了第几阶 / 第几档"才领到，否则他不会知道再往前一步还有奖。 */
+  dungeonGain.forEach(r => {
+    rows.push([r.t, r.jp > 0 ? ('+' + r.jp + ' 剑魄') : ('折扣券 ×' + r.coup)]);
+  });
 
   let h = '';
   if (G.mode === 'level') {
@@ -9476,6 +10167,9 @@ document.addEventListener('click', function (e) {
   else if (act === 'gearoff')  gearDoOff();
   else if (act === 'gearsell') gearDoSell();
   else if (act === 'gearsort') gearToggleSort();
+  /* 淬炼（V3.0）：data-n = 洗几次（1 / 10），data-pay = 付款方式（coin / jp / coupon） */
+  else if (act === 'charm')   gearDoCharm(parseInt(node.getAttribute('data-n') || '1', 10),
+                                          node.getAttribute('data-pay') || 'coin');
   else if (act === 'storyok')  confirmStory();
   /* 「跳过」与「确认」走同一条路径：解锁在排队时就已落盘，跳过只是不看字。
      这样玩家永远不可能因为跳对话而丢解锁（用户明确要求过这一点）。 */
