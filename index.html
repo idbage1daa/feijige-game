@@ -241,6 +241,33 @@ button{font-family:inherit;}
   letter-spacing:3px;font-weight:600;}
 .panel-head .hd-r{font-size:12.5px;color:#ffd96b;white-space:nowrap;}
 .panel-body{display:flex;flex-direction:column;gap:9px;padding-bottom:8px;}
+/* ===== 难度档切换条（V2.0）· 挂在关卡列表顶部 =====
+   三格等宽按钮：不用下拉框（手机上多一次展开点击），也不用单选圆点
+   （在竖屏上横向空间够，直接平铺三个更好点）。 */
+.diff-bar{background:var(--panel);border:1px solid rgba(190,160,92,.28);
+  border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:7px;}
+.diff-row{display:flex;gap:8px;}
+.diff-b{flex:1;padding:9px 4px;border-radius:10px;cursor:pointer;
+  background:rgba(255,255,255,.04);border:1.5px solid rgba(190,160,92,.35);
+  color:#d8cfba;font-size:14px;letter-spacing:2px;font-weight:700;
+  font-family:inherit;transition:background .16s,border-color .16s;}
+.diff-b.on{background:rgba(201,169,97,.20);border-color:var(--gold);color:var(--gold);
+  box-shadow:0 0 0 1px rgba(201,169,97,.35) inset;}
+.diff-b:active{transform:scale(.97);}
+.diff-d{font-size:11.5px;color:#9aa3ae;line-height:1.65;}
+.diff-d b{color:#e8c877;}
+/* ===== 剑魄（V2.0 新增货币）· 天机阁兑换页签 ===== */
+.jc-bar{background:linear-gradient(96deg,rgba(168,139,255,.14),rgba(201,169,97,.10));
+  border:1px solid rgba(168,139,255,.34);border-radius:12px;padding:11px 12px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.jc-bar b{font-size:17px;color:#c9a7ff;letter-spacing:1px;}
+.jc-bar small{font-size:11.5px;color:#9aa3ae;line-height:1.6;display:block;margin-top:3px;}
+.jc-row{display:flex;align-items:center;gap:10px;background:var(--panel);
+  border:1px solid rgba(190,160,92,.22);border-radius:12px;padding:10px;}
+.jc-row .jc-tx{flex:1;min-width:0;}
+.jc-row .jc-tx b{display:block;font-size:14px;color:#f2e7cf;}
+.jc-row .jc-tx small{font-size:11.5px;color:#9aa3ae;}
+.jc-row.dim{opacity:.5;}
 .row{
   display:flex;align-items:center;gap:10px;background:var(--panel);
   border:1px solid rgba(190,160,92,.22);border-radius:12px;padding:10px;
@@ -439,6 +466,16 @@ button{font-family:inherit;}
   transition:transform .06s,filter .12s;
 }
 .choice:active{transform:scale(.975);filter:brightness(1.2);}
+/* ===== 「推荐」角标（V2.0）· 三选一里自动标出最优项 =====
+   金色描边 + 右上角标签 + 一行理由。刻意**不做成"已选中"**的样式 ——
+   它只是建议，三个选项仍然完全等价可点。 */
+.choice.rec{border-color:rgba(232,200,119,.92);
+  box-shadow:0 0 0 1px rgba(232,200,119,.30) inset,0 0 18px rgba(232,200,119,.12);
+  position:relative;}
+.rec-tag{position:absolute;top:-9px;right:11px;font-size:10.5px;letter-spacing:2px;
+  font-weight:700;color:#20180a;background:linear-gradient(160deg,#ffe9a8,#c79a35);
+  border-radius:7px;padding:2px 8px;box-shadow:0 2px 8px rgba(0,0,0,.45);}
+.rec-why{font-size:10.5px;color:#e8c877;margin-top:3px;letter-spacing:.3px;}
 .choice-ic{width:46px;height:46px;flex:0 0 46px;border-radius:12px;display:flex;
   align-items:center;justify-content:center;font-family:"Songti SC",serif;
   font-size:21px;font-weight:700;color:#20180a;
@@ -1889,9 +1926,20 @@ const LEVELS = (function () {
         ch: c, sec: sec,
         /* 波数：每节最低 5 波、最高 8 波（用户口径 2026-09-24）。
            章内第 1~3 节 5 波，4~6 节 6 波，7~9 节 7 波，第 10 节 8 波 ——
-           同一章内「越往后打得越久」，且不会出现某节只有 3 波的短促感。 */
-        waves: 5 + Math.floor((sec - 1) / 3),            // 5 → 8 波
-        per:   5 + Math.floor(sec * 0.8),                // 5 → 13 只/波
+           同一章内「越往后打得越久」，且不会出现某节只有 3 波的短促感。
+           ★ V2.0：第 2/3/4 章的**第 1 节额外 +1 波**。
+             原来 `waves` 只看章内节号，于是新章第 1 节又回到 5 波 ——
+             而上一章的第 10 节是 8 波、"每波只数"也最大，落差 1/4，
+             玩家的体感是"刚打完一场硬仗，突然松掉了"。
+             给新章首节补一波，把落差压到 2 倍以内（验收见 test_balance.py）。 */
+        waves: 5 + Math.floor((sec - 1) / 3) + (sec === 1 && c > 0 ? 1 : 0),
+        /* 每波只数（V2.0 密度翻倍，用户口径："把清点变成割草"）。
+           旧值 5 + ⌊sec×0.8⌋ = 5 → 13 只/波：第 1 关全场只有 25 只、打 62 秒，
+           平均 2.5 秒才冒出一只，玩家感受到的是"清点"。
+           新值 10 + ⌊sec×1.6⌋ = 11 → 26 只/波（≈ ×2.1）。
+           ★ 只数一改，修为收益必须同步补偿，否则等级曲线会失控 ——
+             见 EXP_DENSITY_NERF（每只怪的收益 ×0.48，两者相乘 ≈ 1）。 */
+        per:   10 + Math.floor(sec * 1.6),               // 11 → 26 只/波
         pool:  CH_POOL[c],
         ranged: Math.min(3, Math.floor(sec / 4)),
         boss:  bIdx === undefined ? -1 : bIdx,
@@ -2107,6 +2155,29 @@ function migrateStoryBeats() {
     if (save.levels && save.levels[lv] && save.levels[lv].clear) st.beat[i] = 1;
   }
 }
+/* ★ 进度兜底（2026-09-25 审计 A0-1 修复）：
+   上面那条只兜了 story.beat 一条链，**`stats.bestLevel` 一条兜底的都没有** ——
+   于是存档一旦缺 `stats` 字段（老档 / 手改档 / 半截写入），会发生最难查的一种卡关：
+     levelUnlocked(i) = i <= bestLevel || levels[i].clear
+   已通关的节靠 clear 仍能进能重打，但**第一个未通关的节**两条都不满足 →
+   从它往后的每一节全部上锁，而且玩家做什么都不会解锁它（唯一推进点 bestLevel
+   在 endBattle 里，可它进不去那一关）—— 表现就是「打到第 N 节之后再也点不动了」，
+   且**没有任何恢复路径**。
+
+   ★ 修法选择「从真源反推」而不是「给 bestLevel 喂个默认值」：
+     bestLevel 本质是**派生缓存**（= 已通关的最大下标 + 1），真源是 save.levels[].clear。
+     缓存缺失时不该猜，该重算。
+   ★ 只在**向上**的方向上修正 —— 永不把玩家已解锁的进度往下压。
+     万一以后有别的途径解锁（活动、赠送），那也只是 bestLevel 更大，不会被这里砍掉。 */
+function migrateProgress() {
+  if (!save || !save.stats || typeof save.stats !== 'object') return;
+  const st = save.stats;
+  if (!Number.isFinite(st.bestLevel) || st.bestLevel < 0) st.bestLevel = 0;
+  let need = 0;
+  for (let i = 0; i < LEVELS.length; i++)
+    if (save.levels && save.levels[i] && save.levels[i].clear) need = Math.max(need, i + 1);
+  if (need > st.bestLevel) st.bestLevel = need;
+}
 /* 推进一章剧情：记「已看」，并把该章解锁的功能入口标成「还没点开过」——
    引导条就是靠这个 seen 标记，一步一步把玩家领去新功能。 */
 function markStory(c) {
@@ -2176,8 +2247,15 @@ const GUIDE_STEPS = [
     go:'gear',  done:() => (save.stats.soldGear || 0) > 0 },
   { k:'forge', t:'打开【剑 匣】，用灵石祭炼法宝 —— 升一重就永久生效',
     go:'equip', done:() => EQUIPS.some(e => (save.equip || {})[e.k] > 0) },
+  /* ★ 审计 A2-1 修复：这一步原先写 `done: () => false` ——
+     于是引导条走到这里就**永远不会消失**（st.guide 单调只增，done 恒假），
+     只能手动点 × 关掉；而每次新解锁又会把 guideOff 重置为 false，
+     条子会一次次自己回来。最后一句话本该是"善始善终"的收尾，
+     却变成了退不掉的常驻横幅。
+     现在给一个真判据：玩家点过「去 闯 关」（guideGo 会 markSeen('levels')）
+     就算做到了 —— 这一步的语义本来就是"去关卡列表挑下一节"。 */
   { k:'back',  t:'上手了。回【秘境试炼】挑下一节，试试新装备的威力',
-    go:'levels', done:() => false },
+    go:'levels', done:() => !!storyState().seen.levels },
 ];
 /* 当前该显示的引导步（null = 不显示）。优先级：
    ① 有「解锁了却还没点开」的入口 → 先把它指给玩家；
@@ -2189,14 +2267,28 @@ function guideStep() {
   /* 还没触发过任何解锁（节拍或章节）→ 不显示引导条。
      两条链任一有记录就算「已经教过东西了」。 */
   if (!BEATS.some((b, i) => st.beat[i]) && !UNLOCKS.some(u => st.ch[u.needCh])) return null;
-  const fresh = freshUnlocks();
+  /* ★ 审计 A1-3 修复：fresh 步也要过 featureOpen ——
+     两条链的判据理论上一致，但"一致"是靠人维护的；这里查一次真值，
+     以后任何一条链改了判定口径，指引都不会再指向一扇锁着的门。 */
+  const fresh = freshUnlocks().filter(x => featureOpen(x.k));
   if (fresh.length)
     return { k:'fresh', t:'新解锁了【' + fresh[0].n + '】，点开看看',
              go:fresh[0].k, done:() => false };
   let i = st.guide, moved = false;
   while (i < GUIDE_STEPS.length && GUIDE_STEPS[i].done()) { i++; moved = true; }
   if (moved) st.guide = i;
-  return i < GUIDE_STEPS.length ? GUIDE_STEPS[i] : null;
+  if (i >= GUIDE_STEPS.length) return null;
+  const step = GUIDE_STEPS[i];
+  /* ★ 审计 A1-3 修复：这一步指向的面板**还没解锁** → 先不显示（但**不推进进度**）。
+     为什么不能"直接跳过"：跳过去等于永远不教剑匣（玩家之后再也见不到这条提示）；
+     为什么不能"照常显示"：引导的契约是**指路**，指一扇锁着的门是死路 ——
+     玩家点「去看看」只会被 toast 拒绝，而引导条一动不动，看起来就像卡住了。
+     所以取中间：藏起来等它解锁。它解锁时（第 2 节的节拍）会走 markBeat →
+     guideOff=false，下一次 renderGuide 就会自然把它显示出来。
+     ★ 触发场景是真实的：第 2 节**失败**也照常掉装备（tryDropGear 不依赖通关），
+     所以"分解过装备但还没通关第 2 节"是玩家真会走到的状态。 */
+  if (step.go && !featureOpen(step.go)) return null;
+  return step;
 }
 /* =========================================================================
    章节难度台阶（40 关）
@@ -2340,6 +2432,169 @@ const MOB_MELEE_ATK_MUL = 1.5;    // ② 近战小怪攻击力倍率
 const FOE_SHOT_SPD_MUL  = 1.6;    // ③ 远程小怪子弹速度倍率
 const DEMON_SPD_MUL     = 0.75;   // ④ 心魔移动速度倍率（在 0.88×玩家速度 之上再乘）
 
+/* =========================================================================
+   V2.0 密度补偿 & 前期手感（2026-09-25 新增）
+   -------------------------------------------------------------------------
+   ★ 为什么会有"补偿"这个东西：本版把每波只数从 5→13 抬到 11→26（约 ×2.1），
+     而**每只怪的修为给多少没变**。于是"怪变多了"会顺带变成"修为变多了"，
+     局内升级会失控、局外境界会一路超车 —— 那就不是"把清点变成割草"，
+     而是"把难度稀释掉"。
+
+   补偿的算法：只数 ×2.1、每只收益 ×NERF，两者相乘 ≈ 1 才是"手感变了、节奏没变"。
+     1 / 2.1 ≈ 0.476 → 取 **0.48**（实测 40 关等级曲线偏离 ≤1 级，见 test_balance.py）。
+
+   ★ 为什么单开一个乘区，而不是把它并进 EXP_BASE_NERF/EXP_STEP_NERF：
+     那两个是**历史口径**（"在现有基础上再减 15%"），是对玩家的两次承诺；
+     这个是**本次改动的内部补偿**，性质不同。混在一起之后，
+     以后再调密度就再也算不清"到底哪一刀减了多少"。
+
+   ★ 覆盖范围 = **击杀类的修为收益**，共三条（缺一条就会漏出通胀）：
+       ① 局内经验  P.expMul（grantExp 用）
+       ② 局外修为   m.exp × 0.85（killMob 的直接给法）
+       ③ 饰品「天命所归」的翻倍那一份（它是 ② 的复制，必须同一口径）
+   ★ **不覆盖**：
+       · 灵气符（orbs）拾取 —— 它走 grantExp / expMul，已含在内，无需单独乘；
+       · 关卡通关赏赐、整章赏赐、上香 —— 固定值，不是击杀收益，乘了就是误伤；
+       · **灵石**（coins）—— 刻意不补偿。理由：灵石是"每只怪给一点"的掉落货币，
+         怪多了自然多；而它的出口（剑匣）在 V3.0 会换成"淬炼"这条深坑，
+         届时正需要这批燃料。现在压掉，等于让 V3.0 从赤字起步。
+         ⚠ 代价是这一版灵石会比上一版宽裕约 2 倍 —— 已记入风险提示，不是疏漏。
+   ========================================================================= */
+const EXP_DENSITY_NERF = 0.48;
+
+/* ★ 前 3 波血量下调（V2.0）：怪多了之后，"每只都要砍 2~3 剑"会让开局发涩 ——
+   割草的第一印象是"一剑一片"，先给三波爽的，再逐步上强度。
+   ★ 独立乘区，**不要并进 MOB_HP_MUL**：那个是"整局全局倍率"，
+     这个只在 G.wave ≤ 3 生效，两者语义完全不同（一个是全局缩放、一个是前段减负）。
+   ★ 与 WAVE1_MUL 的方向相反且量级不同 —— 首波 = ×1.25（更硬）×0.75 = ×0.9375，
+     也就是"第 1 波略硬于基准、但比原版软 25%"，倒挂关系（第1波 > 第2波）依旧保留。 */
+const MOB_HP_EARLY_WAVES = 3;
+const MOB_HP_EARLY_MUL   = 0.75;
+
+/* ★★ 密度补偿·战斗侧（V2.0）：**每只怪变弱**，否则"割草"会变成"被割"。
+   -------------------------------------------------------------------------
+   为什么必须有这一对系数（这是本轮唯一一处真正的设计修正）：
+     只数 ×2.1 意味着**同一波里同时压上来的怪多了 2.1 倍** ——
+     每只怪的攻伐不变的话，玩家承受的**总伤害率**也是 ×2.1。
+     第一轮实现（只改 per / 只改修为补偿）实测的直接后果是：
+     连第 1 关都过不去（AI 玩家 6 次全部失败，斩 4 只即阵亡）。
+     根因不是"数值太大"，是**改错了维度** ——
+     「把清点变成割草」的意思是"怪多而弱"，不是"怪多而强"。
+     （复盘：修完密度只想到"修为通胀"这一侧，漏了"承伤通胀"这一侧。
+       以后凡是改动"同时出现的敌方数量"，两侧必须一起看。）
+
+   两个系数分别压什么：
+     · MOB_HP_PER_DENSITY：每只气血 ×0.62 → 全波总血量 = 2.1 × 0.62 ≈ **1.30 倍**
+       （比原来硬 30%，这是"张力"的来源；但单只明显更脆，才有一剑一片）。
+     · MOB_ATK_PER_DENSITY：每只攻伐 ×0.58 → 全波总伤害率 = 2.1 × 0.58 ≈ **1.22 倍**
+       （只涨两成，是"压迫感"而不是"秒杀"）。
+
+   ★ 为什么乘在 spawnMob / spawnRanged 里，而**不乘进 mobScale()/mobAtkScale()**：
+     那两条曲线是所有怪物的共同上游，**魔将的血/攻也走它**
+     （spawnBoss 里 `m.hp = t.hp * mobScale() * …`）。
+     魔将是每关一只的**单独事件**，不因"小怪变多"而变弱 ——
+     乘进 mobScale 会让全部魔将凭空软掉 38%。心魔同理（它也是一只独占单位）。
+     所以判据是：**「这一只是"成批刷出来的"还是"单独安排的"？」
+     成批刷的才吃密度补偿。**（与 MOB_POWER_MUL 的落点刻意相反：
+     那个是"所有怪物"口径，所以必须乘在上游。）
+   ★ 与 MOB_HP_MUL 的关系：不合并。MOB_HP_MUL 是"整条曲线等比缩放"的策划口径，
+     这个是"因为只数翻倍而追加的内部补偿"，生命期与语义都不同。
+     ⚠ 副作用（已记入风险提示）：单只实际气血 = MOB_HP_MUL × 0.62 ≈ 1.86 倍基准，
+       数值上比用户当初"乘三倍"的口径低；但**每波总血量**是 ×3.9 倍基准
+       （原 25 只 × 3 = 75，现 55 只 × 1.86 ≈ 102），整体是更难的，方向没变。 */
+const MOB_HP_PER_DENSITY  = 0.62;
+const MOB_ATK_PER_DENSITY = 0.58;
+
+/* 精英怪（V2.0「下马威」）：第 2/3/4 章第 1 节的第一波额外混入 1 只。
+   ★ 体型倍率走 mkMob 的 extra.scMul（判定盒与绘制同步放大），
+     不要在 spawn 之后直接乘 m.sc —— 那会让判定与绘制错位。 */
+const ELITE_HP_MUL  = 1.8;
+const ELITE_ATK_MUL = 1.4;
+const ELITE_SC_MUL  = 1.3;
+
+/* =========================================================================
+   难度三档（V2.0 新增）
+   -------------------------------------------------------------------------
+   为什么加这个：本作原来的通关体验是「40/40 一次过、20 关满血、全程最低只掉到 47%」——
+   也就是**零失败率**。零失败率意味着没有张力峰值，「险胜」这个最有味道的瞬间
+   一次都没发生过。而把基础难度整体调高是错的解法：它会把"想轻松看剧情"的玩家
+   一起赶走。
+
+   正解是**把"要不要紧张"交给玩家**。这是最便宜的张力来源：
+   一个常量表 + 两个乘区 + 一个三格切换，就让同一份内容服务三种玩家。
+
+   ★ 作用面 = **血量 + 攻伐**，与 MOB_POWER_MUL 完全一致的两个位置。
+   ★ **四旋钮（近战移速 / 近战攻伐 / 远程弹速 / 心魔移速）不参与档位** ——
+     它们管的是"走位感"与"弹道可读性"。跨档改移速会让人产生
+     "我明明换回休闲了，怎么怪追得一样快"的失真感；而且那四条各自
+     还担着"甩得掉 / 看得清"的护栏职责（见 test_mobtune 的护栏断言）。
+   ★ **切换档位不重算任何进度**（不清星级、不清通关记录）：
+     否则玩家会为刷星先切"休闲"、再切回来，难度档就退化成了作弊开关。
+   ★ 默认档是 standard（数值恒等于 1.0） —— 老存档 / 缺字段的档进来就是它，
+     所以"没选过"的玩家的数值与本版之前**逐位相同**，不存在迁移风险。 */
+const DIFFICULTY = [
+  { k:'easy',   n:'休 闲', atkMul:0.80, hpMul:0.85, c:'#8fe3c8',
+    d:'剧情体验，很难死' },
+  { k:'normal', n:'标 准', atkMul:1.00, hpMul:1.00, c:'#e8c877',
+    d:'推荐，有紧张感' },
+  { k:'asura',  n:'修 罗', atkMul:1.35, hpMul:1.15, c:'#ff9b8a',
+    d:'两下见血，硬核向' },
+];
+const DIFF_DEFAULT = 'normal';
+/* 取当前档。★ 一律走这个出口，不要在别处直接读 save.diff ——
+   存档可能缺字段、可能是旧版本留下的非法值（比如以后删掉某一档），
+   出口集中在这里，就只有一个地方需要兜底，而不是每个读它的地方各兜一遍。 */
+function difficultyOf() {
+  const k = save ? save.diff : null;
+  for (const d of DIFFICULTY) if (d.k === k) return d;
+  for (const d of DIFFICULTY) if (d.k === DIFF_DEFAULT) return d;
+  return DIFFICULTY[0];
+}
+
+/* =========================================================================
+   残缺剑魄（V2.0 新增：给失败以产出）
+   -------------------------------------------------------------------------
+   为什么要有它：本作原来失败只有"降七成结算"—— 一无所获。于是最优策略永远是
+   "打简单的关"：反正打不过的关既没进度也没收益，何必去碰。零失败率的另一面
+   就是**玩家没有任何理由去挑战难的关**。
+
+   给失败一份产出，整个动机就反过来了：越难的关（节次越高、杀得越多）
+   剑魄越多，于是"打不过"变成"至少有积累"，玩家才愿意去撞墙。
+
+   ★ 数量公式：`⌊ 本局击杀 × 0.15 + 节次 × 0.6 ⌋`
+       · 击杀项：跑得越远给得越多（不是按时间，是按实际战果）；
+       · 节次项：跨过 40 关的**全局节号**（1~40），保证"越难的关基数越大"，
+         不靠击杀数兜底 —— 否则玩家可以退回简单关刷击杀，跟设计意图正好相反。
+       · 实测：第 1 节 ≈ 3 枚，第 25 节 ≈ 20 枚，第 40 节 ≥ 40 枚。
+   ★ **通关只给一半** —— 这不是惩罚，是引导：如果通关给满，
+     "刷已经打过的简单关"收益最高，又回到了原地刷。给一半则
+     "挑战打不过的关"（全额）明显优于"重刷简单的关"（半额）。
+
+   ★ 发放时机：**只在 endBattle 里发一次**，不在每波发。
+     每波发的话，第一波刷完就退出、再进，可以无限攒 —— 那是最典型的一种经济漏洞。
+   ★ 它**不进局内经济**（不折算成修为、不影响局内等级曲线），只做局外货币。
+     否则"失败"会变成一种奇怪的升级途径，把局内平衡搞乱。 */
+const JIANPO_PER_KILL = 0.15;   // 每杀一只的剑魄系数
+const JIANPO_PER_SEC  = 0.60;   // 每节的剑魄基数（全局节号）
+const JIANPO_WIN_MUL  = 0.5;    // 通关只给一半
+function jianpoGain(win, kills, lvIdx) {
+  const raw = Math.floor((kills || 0) * JIANPO_PER_KILL + (Math.max(0, lvIdx | 0) + 1) * JIANPO_PER_SEC);
+  return Math.max(0, win ? Math.floor(raw * JIANPO_WIN_MUL) : raw);
+}
+/* 剑魄兑换表（天机阁页签）：
+   `coin` 那一项是**无限次**的灵石兑换（1 : 60），其余三种消耗品各受 SHOP 的携带上限约束。
+   ★ 为什么给灵石兑换兜底：剑魄是"必得"的，如果它只能换那三种限量消耗品，
+     玩家迟早会把三种换满 5/5 —— 之后再失败就一无所获，动机链条又断了。
+     灵石这一项是**无上限的泄压阀**，让剑魄永远有用。 */
+const JIANPO_COIN_RATE = 60;
+const JIANPO_EXCH = [
+  { k:'coin',   n:'灵 石', cost:1, coin:JIANPO_COIN_RATE,
+    d:'1 枚剑魄 → 60 灵石（不限次）' },
+  { k:'potion', n:'回春丹', cost:3, d:'3 枚剑魄 → 回春丹 ×1' },
+  { k:'shield', n:'护身符', cost:3, d:'3 枚剑魄 → 护身符 ×1' },
+  { k:'rage',   n:'狂暴丹', cost:3, d:'3 枚剑魄 → 狂暴丹 ×1' },
+];
+
 const CH_STEP_MIN = 9 * IN_STEP + 7 * WV_STEP - LV_STEP;   // ≈ 0.202
 const CH_STEP = [0, 0.34, 0.70, 1.08];
 /* 魔将攻伐走的是另一套系数（台阶按 0.75 折算），约束同源：
@@ -2455,7 +2710,27 @@ const COMMON_GROWTH = [
 const BOTTLENECK_LV = [5, 10, 15, 20, 25];
 const BOTTLENECK_TIME = 16;      // 心魔存在时间（秒）
 const BOTTLENECK_CD = 12;        // 心魔消散后的再挑战冷却（秒）
-const SOFT_CAP_LV = 30;          // 软上限：此后改「通用成长」三选一
+/* ★ 软上限：此后三选一改出「通用成长」（V2.0 从 30 调到 13）
+   为什么原来那个 30 是个**死配置**：主线关卡局内最高只到 18 级
+   （瓶颈层卡在 5/10/15，且清关速度决定了经验总量），30 永远碰不到 ——
+   于是 COMMON_GROWTH 那三条（洗髓伐骨 / 淬炼剑胎 / 御风踏虚）**一次都不会出现**，
+   玩家在后期会遇到"三选一里全是已点满的道技"，只能被迫选没用的。
+   降到 13 之后：局内 14/16/18 级三次三选一会切到通用成长。
+   副作用是**正向的**：通用成长只有 3 条、且都是纯数值叠加，
+   决策成本远低于"18 选 3"，正好一起缓解后期"选择疲劳"。
+   ★ 13 这个数不是拍的：局内到达 14 级的关卡集中在第 3~4 章（见 test2.py 的等级曲线），
+     也就是说"通用成长"恰好从**后期**接手，而不是中局就跑出来。
+   ★ 调这个值时必须同步看「每 2 级一次」那条（PICK_EVERY_LV）——
+     两者相乘决定后期还能选几次，只调一个会算错。 */
+const SOFT_CAP_LV = 13;
+/* 三选一的频率：10 级之前每级一次，10 级起**每 2 级一次**（V2.0）。
+   动机是"选择疲劳"：单局要弹 15~17 次三选一，后期约每 10 秒打断一次，
+   而每次的边际收益已经很小了 —— 打断的代价超过了选择的乐趣。
+   ★ 为什么是"每 2 级"而不是"随机跳过"：节奏必须**可预期**。
+     玩家要能算得出"再过一级就有得选"，随机跳过只会变成烦躁。
+   ★ 用来做判据的是**等级**而不是"第几次"：等级在 HUD 上是可见的，
+     玩家能验证；"第几次"是隐藏状态，说不清道不明。 */
+const PICK_EVERY_LV = 10;
 
 /* ---------------- 每日上香（7 天一轮阶梯奖励，断签重头计） ---------------- */
 /* 每日上香赏赐：灵石统一为 999（阶梯保留「连续天数」的仪式感，第 7 日额外送回春丹） */
@@ -2980,6 +3255,10 @@ const DEFAULT_SAVE = {
   worn:{ sword:null, crown:null, robe:null, bracer:null, belt:null, charm:null },
   bag:[], gearUid:1,
   weapon:'sword',
+  diff:'normal',                            // 难度档（V2.0）：easy / normal / asura
+  /* 残缺剑魄（V2.0）：失败也有的产出，只做**局外**货币（不进局内经济）。
+     jianpo 是余额，stats.jianpoTotal 是累计（用于论道榜/成就，只增不减）。 */
+  jianpo:0,
   levels:{}, dungeons:{}, codex:{}, fails:{}, bossSeen:{},
   /* 剧情推进 & 新手指引（2026-09-24）：
      ch   = 已推进过剧情的章（避免重打末节反复弹剧情）
@@ -2989,7 +3268,7 @@ const DEFAULT_SAVE = {
   items:{ potion:0, shield:0, rage:0 },
   signDate:'', signStreak:0, signTs:0,
   opt:{ shake:true, fps:false, sfx:true, bgm:true, quality:'std' },
-  stats:{ plays:0, kills:0, bestLevel:0, bestStar:0, coins:0, soldGear:0 },
+  stats:{ plays:0, kills:0, bestLevel:0, bestStar:0, coins:0, soldGear:0, jianpoTotal:0 },
 };
 let save = null;
 function deepMerge(base, patch) {
@@ -3015,6 +3294,22 @@ function loadSave() {
      （默认值里 story.beat 是空对象，和老档补齐后的样子完全一致）。
      详见 02_data.js 的 SAVE_VER 注释。 */
   if (!parsed || !(parsed.ver >= SAVE_VER)) migrateStoryBeats();
+  /* ★ 审计 A0-1 的同族补丁：`story` **整块缺失**也是"需要迁移"的明确证据。
+     为什么不能直接无条件跑 migrateStoryBeats()：那会把「刚通关第 1 节的新档」
+     也当成老档，把这一节该播的解锁演出预先标成"已播" ——
+     症状是「打完第 1 节什么都没发生」，test_unlock 的 ⑥b 专门钉着它。
+     但「story 整块不存在」和「beat 是空对象」是两件不同的事：
+       新档的 DEFAULT_SAVE 里 story 一定**存在**（只是 beat 为空）,
+       所以拿 `!parsed.story` 做判据既能覆盖异常档，又不会误伤新档。
+     代价：这是一个"版本号是新的、但内容缺一块"的档——
+     只靠 ver 判不出来，和 bestLevel 那条是同一类问题。 */
+  else if (parsed && !parsed.story) migrateStoryBeats();
+  /* ★ 进度兜底**无条件跑**（不像上面那条要看版本号）：
+     它修的不是"老档格式变了"，而是"任何来路的档都可能缺 stats" ——
+     版本号判不出来（新档也可能因为异常写入丢字段），而它是**幂等**的
+     （对健康档重算结果完全相同），所以每次开机都跑一遍最稳。
+     详见 02_data.js migrateProgress 的注释（这条对应审计 A0-1：可致永久卡关）。 */
+  migrateProgress();
   resyncRealm();
 }
 /* 境界迁移（2026-09-24 境界体系重排时必须做）
@@ -3309,6 +3604,8 @@ const G = {
      只收「本局打出来的」，不清空背包 —— 两者是不同的东西。 */
   wonGear:[],
   bg:0, pool:[0], per:6, rangedN:0, bossIdx:-1,
+  spawnBatch:5,       // 本波的每批刷怪数（妖潮那一波会临时调大，见 startWave）
+  swarmWave:false,    // 本波是否为「妖潮」（HUD / 测试用）
   t:0, time:0, timeLeft:0,
   kills:0, level:1, exp:0, expNeed:14,
   coins:0, xiuwei:0,
@@ -3574,9 +3871,12 @@ function makeParams() {
     drFlat:0, drPct:0, penChance:0,
     tra:{},                                    // 神品特效标志位（applyGear 填充）
     thunderLv:0, rainLv:0, auraLv:0, reviveLv:0,
-    /* 修为获取：初值就是全局 −27.75%（两次 −15% 叠乘，见 EXP_NERF 的说明）。
-       角色 / 技能的加成仍然往这个初值上乘，所以是「整体下移」而不是「互相抵消」。 */
-    expMul:EXP_NERF,
+    /* 修为获取：初值 = 历史两刀（−27.75%，两次 −15% 叠乘，见 EXP_NERF）×
+       本版新增的**密度补偿**（EXP_DENSITY_NERF，见 02_data.js）。
+       角色 / 技能的加成仍然往这个初值上乘，所以是「整体下移」而不是「互相抵消」。
+       ★ 密度补偿必须挂在这一层：它是"每只怪给多少"的乘区，
+         挂在这里，灵气符、直接给修为、饰品翻倍**自动全都吃到**（不用逐个改）。 */
+    expMul:EXP_NERF * EXP_DENSITY_NERF,
     cleaveLv:0, hasteLv:0, berserkLv:0, markLv:0,
   };
 }
@@ -3763,6 +4063,13 @@ function mkMob(t, hpK, atkK, extra) {
     x = clamp(hero.x - Math.cos(a) * dist, 70, WORLD - 70);
     y = clamp(hero.y - Math.sin(a) * dist, 70, WORLD - 70);
   }
+  /* ★ extra.scMul：体型倍率（V2.0 的精英怪用，默认 1）。
+     为什么必须**从这里进去**、而不是 spawn 之后直接乘 m.sc ——
+     下面 hw/hh/hy 三个判定半轴是用 (t.sc × 系数) 预算好的常量，
+     事后改 m.sc 只放大**绘制**、不放大**判定**，于是"剑明明穿过去了却没打中"。
+     这个坑本项目踩过一次（见 hw/hh/hy 的注释），所以缩放一定要在同一个式子里进出。 */
+  const scMul = (extra && extra.scMul) ? extra.scMul : 1;
+  const sc = (t.sc === undefined ? 0.4 : t.sc) * scMul;
   /* 近战压迫感（用户口径 2026-09-24）：移动速度 ×MOB_MELEE_SPD_MUL、
      攻击力 ×MOB_MELEE_ATK_MUL。判据 `t.ranged` —— 代码里的「远程」与
      用户嘴里的「远程怪物」是同一刀，所以近战 = !t.ranged。
@@ -3773,7 +4080,7 @@ function mkMob(t, hpK, atkK, extra) {
   const mAtk = t.atk * atkK * (t.ranged ? 1 : MOB_MELEE_ATK_MUL);
   const mSpd = t.spd * (t.ranged ? 1 : MOB_MELEE_SPD_MUL);
   const m = {
-    id:uid++, t, key:t.key, n:t.n, sc:t.sc, x, y,
+    id:uid++, t, key:t.key, n:t.n, sc:sc, x, y,
     hp:t.hp * hpK, maxHp:t.hp * hpK, atk:mAtk, spd:mSpd,
     exp:t.exp, coin:t.coin,
     r:t.r || 32,
@@ -3784,10 +4091,11 @@ function mkMob(t, hpK, atkK, extra) {
        ② 素材普遍是横宽的兽形（铁鳄 524×240、夜蝠 437×240、蜈蚣 322×240），
           用正圆 r 去套，身体两端永远打不到。
        这里按素材真实宽高比给出椭圆半轴，中心上移与绘制对齐；系数 0.40 是
-       「覆盖身体主体、但不把尾巴和翅尖全算进来」的收缩量。 */
-    hw:(IMG[t.key] && IMG[t.key].naturalWidth ? IMG[t.key].naturalWidth * (t.sc || 0.4) * 0.40 : (t.r || 32)),
-    hh:(IMG[t.key] && IMG[t.key].naturalHeight ? IMG[t.key].naturalHeight * (t.sc || 0.4) * 0.40 : (t.r || 32)),
-    hy:(IMG[t.key] && IMG[t.key].naturalHeight ? -IMG[t.key].naturalHeight * (t.sc || 0.4) * 0.45 : 0),
+       「覆盖身体主体、但不把尾巴和翅尖全算进来」的收缩量。
+       ★ 三处一律用同一个 `sc`（已含 extra.scMul）—— 这就是"缩放必须同进同出"的落点。 */
+    hw:(IMG[t.key] && IMG[t.key].naturalWidth ? IMG[t.key].naturalWidth * sc * 0.40 : (t.r || 32)),
+    hh:(IMG[t.key] && IMG[t.key].naturalHeight ? IMG[t.key].naturalHeight * sc * 0.40 : (t.r || 32)),
+    hy:(IMG[t.key] && IMG[t.key].naturalHeight ? -IMG[t.key].naturalHeight * sc * 0.45 : 0),
     wob:Math.random() * 6.28, hurt:0, kx:0, ky:0, alpha:0, dead:false,
     slow:0, slowAmt:0, orbCd:0, fireCd:1.6 + Math.random() * 1.4,
     ranged:!!t.ranged, boss:false, ring:0,
@@ -3831,8 +4139,17 @@ function mobScale() {
   /* MOB_HP_MUL：整条血量曲线等比缩放（第 1 波即生效，之后照常递增）。
      MOB_POWER_MUL：「所有怪物加强 1.15 倍」的**血量那一半**。
      ★ 这里刻意不写具体倍数 —— 当前值、口径变更史、覆盖范围都记在 02_data.js
-     的定义处。旋钮每调一次就改两处注释，必然漏一处（已经漏过一次）。 */
-  return (G.wave === 1 ? k * WAVE1_MUL : k) * MOB_HP_MUL * MOB_POWER_MUL;
+     的定义处。旋钮每调一次就改两处注释，必然漏一处（已经漏过一次）。
+     difficultyOf().hpMul：难度档的**血量那一半**（默认档 = 1.00，即恒等）。
+     它必须与 MOB_POWER_MUL 并列、而不是乘进它 —— 两者生命期不同：
+     一个是玩家随时可改的选择，一个是全局策划口径，混在一起以后就分不开了。
+     ★★ V2.0 修正：`MOB_HP_EARLY_MUL`（前 3 波减负）与 `MOB_HP_PER_DENSITY`
+     （密度补偿）**都从这里搬走了**，改挂在 spawnMob / spawnRanged 上。
+     原因：本函数是所有怪物的共同上游，**魔将也走它** ——
+     那两个系数是"因为小怪成批刷才要做的修正"，把单个的魔将一起削掉是误伤。
+     判据统一为「成批刷的吃，单独安排的（魔将/心魔）不吃」。 */
+  return (G.wave === 1 ? k * WAVE1_MUL : k) * MOB_HP_MUL * MOB_POWER_MUL
+         * difficultyOf().hpMul;
 }
 function mobAtkScale() {
   const ch = chapterOf(G.lvIdx), inCh = G.lvIdx - ch * CH_SIZE;
@@ -3840,19 +4157,57 @@ function mobAtkScale() {
               + Math.max(0, G.wave - 1) * WV_STEP_A;
   /* MOB_POWER_MUL：「所有怪物加强 1.15 倍」的**攻击力那一半**。
      ★ 魔将的最终 atk 在 spawnBoss 里是 `t.atk * mobAtkScale() * 0.62` ——
-       本函数是它唯一的上游，所以"所有怪物"含魔将是**结构上成立**的。 */
-  return (G.wave === 1 ? k * WAVE1_MUL : k) * MOB_POWER_MUL;
+       本函数是它唯一的上游，所以"所有怪物"含魔将是**结构上成立**的。
+     difficultyOf().atkMul：难度档的**攻伐那一半**（默认档 = 1.00）。
+       与血量侧同一处理：并列、不合并。 */
+  return (G.wave === 1 ? k * WAVE1_MUL : k) * MOB_POWER_MUL * difficultyOf().atkMul;
 }
 
-function spawnMob(mi, scale) {
-  const k = scale === undefined ? mobScale() : scale;
-  const m = mkMob(MOBS[mi], k, mobAtkScale());
+/* ★★ 密度补偿与前段减负的唯一落点（V2.0）。
+   判据只有一条：**「这一只是"成批刷出来的"，还是"单独安排的"？」**
+     成批刷的（普通妖兽 / 远程妖修 / 精英）→ 吃 MOB_HP_PER_DENSITY + 前 3 波减负；
+     单独安排的（魔将 spawnBoss、心魔 spawnHeartDemon）→ 直接用 mobScale()，不吃。
+   ★ 为什么必须做成"一个入口"而不是在每个调用点各乘一次：
+     漏乘一处就会让某一类怪凭空硬一倍/软一半，而且**只在那类怪出现的关卡**才看得出来，
+     极难定位。所以统一走 bulkK()/bulkA()，加怪只改这两个函数。 */
+function bulkK(scale) {
+  const k = (scale === undefined ? mobScale() : scale) * MOB_HP_PER_DENSITY;
+  return G.wave <= MOB_HP_EARLY_WAVES ? k * MOB_HP_EARLY_MUL : k;
+}
+function bulkA() { return mobAtkScale() * MOB_ATK_PER_DENSITY; }
+
+function spawnMob(mi, scale, extra) {
+  const m = mkMob(MOBS[mi], bulkK(scale), bulkA(), extra);
   mobs.push(m);
   return m;
 }
+/* =========================================================================
+   精英怪（V2.0：新章首节的「下马威」）
+   -------------------------------------------------------------------------
+   为什么要有它：跨章的节奏落差是本作最明显的一处体感缺陷 ——
+   章末一关要打 110~127 秒，下一章第 1 节却只有 39~51 秒（体量掉到 1/4）。
+   根因是 `waves` 只按**章内**节号算，新章第 1 节又回到 5 波、`per` 也最小。
+   加一波（见 02_data.js 的 waves 公式）能补体量，但补不了**压强** ——
+   体量可以靠"多打几只"糊过去，而"这关不一样"需要一个能被记住的瞬间。
+
+   于是给新章第一波塞一只精英：血量 ×1.8、攻伐 ×1.4、体型 ×1.3。
+   ★ 为什么只放**一只**：它是"下马威"不是"小 Boss"。一只才读得出"这个是硬骨头"，
+     三只就变成了"这波怪怎么这么多"。玩家应该有"绕开它先清小怪"这个选择。
+   ★ 体型放大走 extra.scMul（判定盒同步放大）—— 详见 mkMob 里那段说明。
+   ★ 奖励给三倍：否则玩家学会的会是"无视它"，而不是"先打它"。
+   ========================================================================= */
+function markElite(m) {
+  m.elite = true;
+  m.maxHp = m.hp = m.maxHp * ELITE_HP_MUL;
+  m.atk *= ELITE_ATK_MUL;
+  m.exp = Math.round(m.exp * 3);
+  m.coin = Math.round(m.coin * 3);
+  m.n = '精 英 · ' + m.n;
+  return m;
+}
 function spawnRanged(scale) {
-  const k = scale === undefined ? mobScale() : scale;
-  const m = mkMob(RANGED, k * 0.8, mobAtkScale() * 0.9);
+  /* 远程妖修同样"成批刷"，所以照样吃密度补偿（见 bulkK 的说明） */
+  const m = mkMob(RANGED, bulkK(scale) * 0.8, bulkA() * 0.9);
   m.fireCd = 1.2 + Math.random() * 2;
   mobs.push(m);
   return m;
@@ -4113,15 +4468,39 @@ function bossCast(m, k, dx, dy) {
 const WAVE_PREPARE  = 2.2;    // 波间待机时长（秒）
 const WAVE_PREPARE0 = 1.6;    // 第一波待机（开局已数过 3-2-1，不必再久等）
 const WAVE_BOSS_PREPARE = 1.6;// 魔将降临前的待机
-const SPAWN_DELAY   = 0.16;   // 每批刷怪间隔（秒）
-const SPAWN_BATCH   = 2;      // 每批刷几只
+/* SPAWN_DELAY / SPAWN_BATCH（V2.0 调）：
+   只数翻倍之后，"每批 2 只、每 0.16 秒一批"会让一波刷满要 2 秒以上，
+   玩家看到的是"怪一只只往外冒"，与"涌出来"的割草观感不符。
+   改成每批 5 只、批间隔 0.10 秒 → 26 只约 5 批 / 0.5 秒内铺满，
+   整波是"涌"出来的。★ 这两条只影响**观感节奏**，不影响总只数与强度。 */
+const SPAWN_DELAY   = 0.10;   // 每批刷怪间隔（秒）
+const SPAWN_BATCH   = 5;      // 每批刷几只
 const HUNT_T        = 9;      // fight 超过这个秒数、且残兵 ≤2 → 残妖追猎
 const HUNT_MUL      = 1.45;   // 追猎时残兵的移速倍率（加速回追，不瞬移）
+/* ★★ 妖潮（V2.0 改4）：每章第 7 节的某一波，一次性涌出 30+ 只。
+   ------------------------------------------------------------------
+   为什么要有它：只数翻倍解决的是"平均密度"，但一整章 10 节如果只有量的差别，
+   打完不会有任何"这一节不一样"的记忆点。妖潮就是章节内部的**节奏高点**。
+
+   ★ 三条边界，都不许越：
+     ① **不新增波数** —— 波数归 `waves`（`5 + ⌊(sec−1)/3⌋`）管，
+        这里只是把某一波的**清单加料**。新增波数会让整关时长与跨章节拍全乱。
+     ② **不提高单只强度** —— 妖潮给的是"数量压迫"，倍率反而略降（×0.92），
+        否则「30 只 × 加强」就是秒杀，而不是高潮。
+     ③ **必须一次性投放** —— 分批慢慢刷出来，玩家只会觉得"这波怎么这么久"；
+        同一瞬间铺满屏幕，"群妖并起"才读得出来。
+   ★ 为什么落在第 2 波：第 1 波是热身（还要承接"新章精英"），最后一波紧接着要收尾，
+     中段才是情绪最高点。 */
+const SWARM_SEC    = 7;       // 章内第 7 节
+const SWARM_WAVE   = 2;       // 取该节第 2 波
+const SWARM_EXTRA  = 30;      // 额外涌出的只数
+const SWARM_MUL    = 0.92;    // 妖潮那批的单只倍率（略降，只加数量）
 /* 每波全歼时给玩家的节奏提示：清场 → 待机倒计时（HUD 会显示剩余秒数） */
 function startWave(n, isBoss) {
   G.wave = n;
   const L = LEVELS[G.lvIdx], k = mobScale();     // ★ 必须在 G.wave 定好之后再取，才吃得到「每波加强」
   G.plan = []; G.planI = 0; G.spawnT = 0; G.fightT = 0; G.huntOn = false;
+  G.spawnBatch = SPAWN_BATCH; G.swarmWave = false;
   if (isBoss) {
     /* 魔将波：魔将本体 + 一队随从（随从数随波次缓涨，不再是一堆小怪糊脸） */
     G.plan.push({ b: G.bossIdx, s: k * 1.05 * (L.bossMult || 1) });
@@ -4133,7 +4512,26 @@ function startWave(n, isBoss) {
     for (let i = 0; i < G.per; i++)
       G.plan.push({ m: L.pool[(Math.random() * L.pool.length) | 0], s: k });
     for (let i = 0; i < L.ranged; i++) G.plan.push({ r: 1, s: k * 0.9 });
-    toast('第 ' + n + ' 波 · 共 ' + G.waves + ' 波', '#8fe3c8');
+    /* ★ 新章首节「下马威」（V2.0）：第 2/3/4 章的第 1 节、第一波，额外一只精英。
+       判据全在数据侧能读到的字段上（L.sec / G.lvIdx 的章号），不另设 flag ——
+       新章一进关就成立，玩家中途退出重进也还是成立。 */
+    const isNewChOpening = (n === 1 && L.sec === 1 && chapterOf(G.lvIdx) > 0);
+    if (isNewChOpening)
+      G.plan.push({ m: L.pool[(Math.random() * L.pool.length) | 0], s: k, elite: 1 });
+    /* ★ 妖潮（V2.0 改4）：本波一次性多涌 SWARM_EXTRA 只（详见常量处说明）。
+       ★ 只加**清单**、不改波数；倍率略降，所以是"数量高潮"而不是"数值高潮"。
+       ★ spawnBatch 提到 40 → 生成阶段**一口气**放完，而不是分 6 批慢慢冒。 */
+    const isSwarm = (L.sec === SWARM_SEC && n === SWARM_WAVE);
+    if (isSwarm) {
+      for (let i = 0; i < SWARM_EXTRA; i++)
+        G.plan.push({ m: L.pool[(Math.random() * L.pool.length) | 0], s: k * SWARM_MUL });
+      G.spawnBatch = SWARM_EXTRA + SPAWN_BATCH;   // 一趟放完（清单上限就是它）
+      G.swarmWave = true;
+    }
+    toast(isSwarm ? ('妖潮 · 群妖并起（' + G.plan.length + ' 只）')
+                  : (isNewChOpening ? '新章首战 · 精英拦路'
+                                    : ('第 ' + n + ' 波 · 共 ' + G.waves + ' 波')),
+          isSwarm ? '#ffd76b' : (isNewChOpening ? '#ff9b8a' : '#8fe3c8'));
   }
   G.waveState = 'spawn';
   SFX.wave();
@@ -4154,11 +4552,16 @@ function aliveMobs() {
   for (const m of mobs) if (!m.dead) n++;
   return n;
 }
-/* 按清单放一只（魔将 / 妖修 / 普通妖兽走三条不同的生成函数） */
+/* 按清单放一只（魔将 / 妖修 / 精英 / 普通妖兽走四条不同的生成路径） */
 function spawnPlan(t) {
   if (t.b !== undefined) spawnBoss(t.b, t.s);
   else if (t.r) spawnRanged(t.s);
-  else spawnMob(t.m, t.s);
+  else {
+    /* ★ 顺序不能反：体型倍率必须在**生成时**就交给 mkMob（判定盒与绘制同源），
+       生成之后再乘 m.sc 只会放大画面、不放大判定 —— 那就是"剑穿过去了"。 */
+    const m = spawnMob(t.m, t.s, t.elite ? { scMul: ELITE_SC_MUL } : null);
+    if (t.elite) markElite(m);
+  }
 }
 /* 本波全歼：要么进下一波的待机，要么召魔将，要么通关 */
 /* ---------------- 装备掉落 ---------------- */
@@ -4416,11 +4819,15 @@ function killMob(m) {
     orbs.push({ x:m.x + (Math.random() - 0.5) * 30, y:m.y + (Math.random() - 0.5) * 30,
                 v:val, pulled:false });
   G.coins += Math.round(m.coin * (1 + G.lvIdx * 0.35));   // 灵石收益随关卡放大，保证局外成长跟得上
-  G.xiuwei += m.exp * (m.boss ? 4 : 1) * 0.85;
+  /* 局外修为：`m.exp` 是每只怪的**原始**修为，这条通路**不走 P.expMul** ——
+     所以密度补偿必须在这里单独乘一次（漏了它就是"怪多了、局外修为白涨一倍"）。
+     ★ 与 P.expMul 是同一笔口径，务必同进同出：只改其中一处，
+       表现是"局内等级正常、但境界一路超车"，很难第一时间想到是这里漏了。 */
+  G.xiuwei += m.exp * (m.boss ? 4 : 1) * 0.85 * EXP_DENSITY_NERF;
   /* 神品饰品「天命所归」：15% 概率额外一份修为 —— 饰品「主打特效」的落点就在这里。
      用「翻倍」而不是「固定值」，是因为它天然随关卡缩放，不会在后期变成废特效。 */
   if (P.tra && P.tra.tianming && Math.random() < 0.15) {
-    G.xiuwei += m.exp * (m.boss ? 4 : 1) * 0.85;
+    G.xiuwei += m.exp * (m.boss ? 4 : 1) * 0.85 * EXP_DENSITY_NERF;   // 与上面同一口径
     popText(m.x, m.y - m.r - 30, '天命 · 修为翻倍', '#ff9a4d', 1);
   }
   /* 魔将必掉装备，而它走的是「品阶上抬」那套权重（见 gearTierWeights） */
@@ -4476,7 +4883,12 @@ function tryLevelUp() {
     G.level++;
     if (isBottleneck(G.level)) G.bottleBroken = false;   // 新的瓶颈层到来，重置
     G.expNeed = expNeedFor(G.level);
-    G.pending++;
+    /* ★ V2.0：三选一的频率（见 02_data.js 的 PICK_EVERY_LV）。
+       `G.pending` 是"欠玩家几次三选一"的计数，只在这里加 ——
+       所以"每 2 级一次"落在这一句上就够，不用去动 openLevelUp 的调用链。
+       ★ 用 G.level（升级后的等级）判奇偶：10 级那次要给，
+         所以判据是"≥10 且为偶数"，而不是"奇数跳过"。 */
+    if (G.level < PICK_EVERY_LV || (G.level % 2) === 0) G.pending++;
     up = true;
   }
   if (up) {
@@ -5076,7 +5488,9 @@ function updateBattle(dt) {
       G.spawnT -= dt;
       if (G.spawnT <= 0) {
         G.spawnT = SPAWN_DELAY;
-        for (let i = 0; i < SPAWN_BATCH && G.planI < G.plan.length; i++)
+        /* ★ 每批只数走 G.spawnBatch 而不是常量：妖潮那一波要**一口气**放完
+           （见 startWave 的 SWARM_* / 常量处说明）。默认值就是 SPAWN_BATCH。 */
+        for (let i = 0; i < (G.spawnBatch || SPAWN_BATCH) && G.planI < G.plan.length; i++)
           spawnPlan(G.plan[G.planI++]);
         if (G.planI >= G.plan.length) { G.waveState = 'fight'; G.fightT = 0; }
       }
@@ -5529,9 +5943,12 @@ function drawMobs() {
       ctx.fillStyle = 'rgba(140,210,255,0.5)';
       ctx.beginPath(); ctx.ellipse(0, -dh * 0.45, dw * 0.45, dh * 0.42, 0, 0, 6.284); ctx.fill();
     }
-    if (m.boss) {
+    /* 魔将 / 精英：一圈脉动的警示环（精英用暖橙、更细，与魔将的赤红区分开）。
+       这一圈不是为了好看 —— 它承担"该躲/该先打"的语义，必须一眼认出来。 */
+    if (m.boss || m.elite) {
       ctx.globalAlpha = 0.5 + 0.25 * Math.sin(G.t * 5);
-      ctx.strokeStyle = '#ff8f7a'; ctx.lineWidth = 5;
+      ctx.strokeStyle = m.elite ? '#ffb37a' : '#ff8f7a';
+      ctx.lineWidth = m.elite ? 3.5 : 5;
       ctx.beginPath(); ctx.ellipse(0, -dh * 0.42, dw * 0.55, dh * 0.5, 0, 0, 6.284); ctx.stroke();
     }
     /* 血魔狂化：外圈再套一层赤色怒环 —— 狂化是「该躲」的信号，必须一眼认出来 */
@@ -5547,17 +5964,20 @@ function drawMobs() {
     /* —— 怪物血条：始终显示（玩家要随时判断先打谁、还差几刀），
           深色底 + 描边 + 纵向渐变，任何地皮上都看得清 —— */
     {
-      const big = m.boss || m.heartDemon;
-      const bw = m.boss ? 170 : (m.heartDemon ? 150 : 58);
-      const bh = m.boss ? 13 : (m.heartDemon ? 12 : 7);
-      const bx = m.x - bw / 2, by = m.y - dh - (m.boss ? 26 : (m.heartDemon ? 22 : 8));
+      /* 精英也算「big」：玩家要能判断"值不值得先啃它"，那就得看得见它还差几刀。
+         尺寸介于普通怪与心魔之间（104×10），配色借魔将的暖色渐变，
+         这样同屏里三种"大怪"各有一套尺寸/配色，不会认错。 */
+      const big = m.boss || m.heartDemon || m.elite;
+      const bw = m.boss ? 170 : (m.heartDemon ? 150 : (m.elite ? 104 : 58));
+      const bh = m.boss ? 13 : (m.heartDemon ? 12 : (m.elite ? 10 : 7));
+      const bx = m.x - bw / 2, by = m.y - dh - (m.boss ? 26 : (m.heartDemon ? 22 : (m.elite ? 14 : 8)));
       const hr = Math.max(0, Math.min(1, m.hp / m.maxHp));
       ctx.save();
       ctx.fillStyle = 'rgba(8,10,14,0.84)';
       roundRect(bx - 2, by - 2, bw + 4, bh + 4, (bh + 4) / 2); ctx.fill();
       ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 1.5;
       roundRect(bx - 2, by - 2, bw + 4, bh + 4, (bh + 4) / 2); ctx.stroke();
-      ctx.fillStyle = hpGrad(m.heartDemon ? 'd' : (m.boss ? 'b' : 'm'), bh);
+      ctx.fillStyle = hpGrad(m.heartDemon ? 'd' : ((m.boss || m.elite) ? 'b' : 'm'), bh);
       ctx.translate(bx, by);
       roundRect(0, 0, Math.max(2, bw * hr), bh, bh / 2); ctx.fill();
       ctx.restore();
@@ -5999,6 +6419,13 @@ function drawHUD() {
   else if (G.mode === 'endless') line = '无尽妖潮　已撑 ' + Math.floor(G.time) + ' 秒';
   else if (G.mode === 'timed') line = '限时斩妖　剩余 ' + Math.ceil(G.timeLeft) + ' 秒';
   else line = '魔将连战　已斩 ' + G.bossKilled + ' 将';
+  /* ★ 难度档常驻小字（V2.0）：非标准档时才挂上去。
+     为什么要显示：难度档是**唯一一个玩家自己改过、却在战斗里看不出来**的设定 ——
+     怪的强度悄悄变了 15%，玩家只会觉得"这一关怎么这么难"，而不是
+     "哦我切到修罗了"。挂在章节/波次这一行上，是因为它本来就在逐关变化，
+     玩家的视线已经落在这里；不挂右上角是为了不撞暂停按钮。 */
+  { const _D = difficultyOf();
+    if (_D.k !== DIFF_DEFAULT) line += '　【' + _D.n + '】'; }
   txtS(line, VW / 2, 183, 'bold 30px "Songti SC",serif', '#ffe9b0', 'center', 5);
   if (sub) txtS(sub, VW / 2, 213, 'bold 20px "Songti SC",serif', '#e8c877', 'center', 4);
 
@@ -7522,6 +7949,14 @@ function clickNav(i) {
 }
 function refreshLobby() {
   if (!el['lb-coin']) return;
+  /* ★ 审计 A1-4 修复：syncChars() 定义了却**全项目没有任何调用点** ——
+     它本该做两件事（老档一次性补结缘、把 owned 对齐到「已达成的结缘条件」），
+     结果一件都没发生：卡片靠 charUnlocked() 判定显示「已结缘」，
+     而「N / 8 位同行」的计数读的是 save.char.owned.length —— 两者长期不一致。
+     挂在 refreshLobby 上而不是 loadSave 里：它要覆盖的不只是「开机」，
+     还有「本局刚达成条件」这种**局内推进**（否则通关后计数要等下次启动才更新）。
+     它内部只在真的补发了角色时才落盘，所以高频调用不会刷盘。 */
+  syncChars();
   el['lb-coin'].textContent = save.coins;
   if (el['lb-name']) el['lb-name'].textContent = save.name || '无名散修';
   el['lb-realm'].textContent = realmName(save.realmIdx);
@@ -7746,9 +8181,35 @@ function rollName() {
 }
 
 /* ---------------- 关卡选择 ---------------- */
+/* 难度档切换条（V2.0）—— 挂在关卡列表顶部。
+   ★ 为什么放在关卡列表而不是设置页：它是"进关之前"的一次选择，
+     和"这关难不难"是同一个念头；放进设置页玩家根本想不起来有它。
+   ★ 为什么不做成"逐个关卡记忆档位"：那样切换成本高、而且要改存档结构；
+     难度是玩家当下的心情，不是关卡的属性。 */
+function diffBarHTML() {
+  const cur = difficultyOf();
+  return '<div class="diff-bar">' +
+    '<div class="diff-row">' +
+    DIFFICULTY.map(d => '<button class="diff-b' + (d.k === cur.k ? ' on' : '') +
+      '" data-act="diff" data-k="' + d.k + '">' + d.n + '</button>').join('') +
+    '</div>' +
+    '<small class="diff-d">' + cur.d +
+    '　·　只影响怪物<b>气血与攻伐</b>，不改变移速与弹道；切换不影响已解锁进度与星级</small>' +
+    '</div>';
+}
+/* 切换难度档：只改 save.diff，**不碰**任何进度字段（见 02_data.js 的口径说明）。
+   立刻重绘关卡列表，是为了让玩家在按「挑战」之前就看到生效。 */
+function setDifficulty(k) {
+  const D = DIFFICULTY.find(x => x.k === k);
+  if (!D || difficultyOf().k === k) return;
+  save.diff = k;
+  saveGame();
+  renderLevels();
+  domToast('难度 · ' + D.n + '　' + D.d);
+}
 function renderLevels() {
   el['lv-coin'].textContent = '灵石 ' + save.coins;
-  let h = '';
+  let h = diffBarHTML();
   LEVELS.forEach((L, i) => {
     /* —— 章头：整幅场景大图 + 章名 + 威胁档 + 本章战果 —— */
     const ch = chapterOf(i);
@@ -8207,6 +8668,29 @@ function renderCodex() {
 function renderShop() {
   el['sh-coin'].textContent = '灵石 ' + save.coins;
   let h = '';
+  /* —— 剑魄兑换（V2.0）—— 放在最上面
+     它是"打不过攒下来的东西"，玩家点进天机阁的第一件事就是想看看它怎么花。
+     埋在丹药下面等于藏起来。 */
+  const jp = save.jianpo || 0;
+  h += '<div class="jc-bar"><div><b>残缺剑魄 ' + jp + ' 枚</b>' +
+       '<small>挑战失败也有产出 · 节次越高给得越多（通关只给一半）</small></div>' +
+       '<small style="text-align:right">累计<br><b style="font-size:14px;color:#e8c877">' +
+       (save.stats.jianpoTotal || 0) + '</b></small></div>';
+  JIANPO_EXCH.forEach(x => {
+    const s = SHOP.find(y => y.k === x.k);
+    const have = s ? (save.items[x.k] || 0) : 0;
+    const full = !!s && have >= s.max;
+    const can = jp >= x.cost && !full;
+    h += '<div class="jc-row' + (can ? '' : ' dim') + '">' +
+      '<div class="jc-tx"><b>' + x.n +
+        (s ? '　<span style="color:#6fd8bd;font-size:12px">持有 ' + have + ' / ' + s.max + '</span>' : '') +
+      '</b><small>' + x.d + '</small></div>' +
+      '<div class="row-act">' + (full
+        ? '<button class="mini gray" disabled>已满</button>'
+        : '<button class="mini" data-act="jianpo" data-k="' + x.k + '"' +
+          (can ? '' : ' disabled') + '>' + x.cost + ' 剑魄</button>') +
+      '</div></div>';
+  });
   SHOP.forEach((s, i) => {
     const have = save.items[s.k] || 0;
     const can = save.coins >= s.price && have < s.max;
@@ -8221,6 +8705,29 @@ function renderShop() {
       '</div></div>';
   });
   el['sh-list'].innerHTML = h;
+}
+/* 剑魄兑换（V2.0）。与 buyItem 分开写、而不是给 buyItem 加分支：
+   两者的**计价货币**不同（剑魄 vs 灵石），合并之后每次改动都要同时想
+   "这个判断对两种货币都成立吗"，那正是漏判据的地方。 */
+function buyJianpo(k) {
+  const x = JIANPO_EXCH.find(e => e.k === k);
+  if (!x) return;
+  const jp = save.jianpo || 0;
+  if (jp < x.cost) { domToast('剑魄不足，还差 ' + (x.cost - jp) + ' 枚（挑战失败可得）'); return; }
+  if (x.k === 'coin') {
+    save.jianpo = jp - x.cost;
+    save.coins += x.coin;
+    saveGame(); renderShop(); refreshLobby();
+    domToast('兑换 · 灵石 +' + x.coin + '　余剑魄 ' + save.jianpo + ' 枚');
+    return;
+  }
+  const s = SHOP.find(y => y.k === x.k);
+  const cur = save.items[x.k] || 0;
+  if (s && cur >= s.max) { domToast('已达携带上限'); return; }
+  save.jianpo = jp - x.cost;
+  save.items[x.k] = cur + 1;
+  saveGame(); renderShop(); refreshLobby();
+  domToast('兑换 · ' + x.n + ' ×1，下一局自动生效');
 }
 function buyItem(i) {
   const s = SHOP[i], have = save.items[s.k] || 0;
@@ -8239,6 +8746,7 @@ function renderBoard() {
     ['最高星级', (save.stats.bestStar ? '★'.repeat(save.stats.bestStar) : '暂无')],
     ['累计斩妖', save.stats.kills + ' 只'],
     ['累计灵石', save.stats.coins + ' 枚'],
+    ['残缺剑魄', (save.jianpo || 0) + ' 枚（累计 ' + (save.stats.jianpoTotal || 0) + '）'],
     ['游历次数', save.stats.plays + ' 局'],
     ['当前境界', realmName(save.realmIdx)],
     ['无尽妖潮', ((d.endless && d.endless.bestTime) ? d.endless.bestTime + ' 秒' : '暂无记录')],
@@ -8356,7 +8864,46 @@ function offerSkills() {
     const i = (Math.random() * pool.length) | 0;
     out.push(pool.splice(i, 1)[0]);
   }
+  /* ★ V2.0：池子不满 3 个时用「通用成长」补齐。
+     原来 SKILLS 被点满后会退化成"只给 1 个选项"的弹窗 —— 那已经不是三选一，
+     而是"强制确认"，还要多按一次、多停一次。
+     COMMON_GROWTH 的 max 是 99，实际是无限池，正好当兜底。
+     ★ 必须去重：它和 out 里已有的项不能重（同一格出现两次是肉眼可见的 bug）。
+     ★ 只在**不足**时补 —— 池子够的时候不要混入，否则 SKILLS 阶段的构筑逻辑会变味。 */
+  if (out.length < 3) {
+    const have = out.map(s => s.k);
+    const filler = COMMON_GROWTH.filter(s => have.indexOf(s.k) < 0 && (G.taken[s.k] || 0) < s.max);
+    while (out.length < 3 && filler.length) {
+      out.push(filler.splice((Math.random() * filler.length) | 0, 1)[0]);
+    }
+  }
   return out;
+}
+/* 「推荐」角标（V2.0）：在三个选项里挑一个最优项，标金角标 + 一行理由。
+   ★ 为什么不是"自动帮玩家选"：这游戏的乐趣之一就是构筑取舍。
+     角标是**降低决策成本**，不是替玩家决策 —— 他随时可以点别的。
+   ★ 打分口径（从高到低，先命中先赢）：
+     ① 能凑成 / 升级道统羁绊 —— 那是一次质变（换一条被动），不是 +5% 数值；
+     ② 已投过层的技能 —— 把一门点满强于撒胡椒面，也让"我投的那门"有回报；
+     ③ 都没有时看层数上限，优先上限高的（能长期吃收益）。
+   ★ 并列时取**下标最小**的那个 —— 保证确定性，不引入随机。
+     （测试会直接断言"下标稳定"，随机 tie-break 会让断言间歇性报红。） */
+function recommendPick(list) {
+  let bi = -1, bs = -1, bw = '';
+  list.forEach((s, i) => {
+    let sc = 0, why = '';
+    const hits = bondPreview(s);
+    if (hits.length) {
+      sc += 1000 + (hits[0].tier ? 100 : 0);
+      why = '可凑成「' + hits[0].b.n + '」' + hits[0].to + ' 档';
+    }
+    const lv = G.taken[s.k] || 0;
+    if (lv > 0) { sc += 50 + lv * 5; if (!why) why = '已修 ' + lv + ' 层，点满收益更高'; }
+    sc += (s.max || 0) * 0.01;
+    if (!why) why = '上限 ' + s.max + ' 层，可长期叠加';
+    if (sc > bs) { bs = sc; bi = i; bw = why; }
+  });
+  return bi < 0 ? null : { i:bi, why:bw };
 }
 /* 一门道技归入哪些道统（可能同时属于两个，例如护体剑阵） */
 function bondsOfSkill(k) {
@@ -8392,13 +8939,17 @@ function openLevelUp() {
   if (!list.length) { G.pending = 0; G.paused = false; cv.style.pointerEvents = 'auto'; return; }
   G.paused = true;
   cv.style.pointerEvents = 'none';
+  const rec = recommendPick(list);
   let h = '';
   list.forEach((s, i) => {
     const lv = G.taken[s.k] || 0;
     const bt = bondTagsHTML(s.k);
-    h += '<div class="choice" data-act="pick" data-i="' + i + '">' +
+    const isRec = !!rec && rec.i === i;
+    h += '<div class="choice' + (isRec ? ' rec' : '') + '" data-act="pick" data-i="' + i + '">' +
+      (isRec ? '<span class="rec-tag">推 荐</span>' : '') +
       '<div class="choice-ic">' + icOf(s.k, 26) + '</div>' +
       '<div class="choice-tx"><b>' + s.n + ' <span class="tag t-' + s.t + '">' + TYPE_NAME[s.t] + '</span></b>' +
+      (isRec ? '<div class="rec-why">' + rec.why + '</div>' : '') +
       '<p>' + s.d + '</p>' +
       '<div class="choice-lv">' + (lv ? '已修 ' + lv + ' 层' : '尚未修习') + '　上限 ' + s.max + ' 层' +
         (bt ? '　道统：' + bt : '') + '</div>' +
@@ -8446,6 +8997,13 @@ function pickSkill(i) {
 function setPause(on) {
   if (G.scene !== 'battle') return;
   if (on && G.pending > 0) return;
+  /* ★ 审计 A2-2 修复：冻结层不止「升级三选一」一种 ——
+     openLoot() 也是（它设 G.paused 并关掉画布手势，要求玩家先确认收获）。
+     原判据只挡了 G.pending，于是「获得物品」弹窗上按 Esc →
+     togglePause → setPause(false) → 冻结被解开、pointerEvents 恢复 auto，
+     战斗在遮罩背后继续跑（虽然不会重复结算，但「必须先确认」的语义被破坏了）。
+     lootPending 期间**两个方向都拒**：不许再叠一层暂停，更不许把冻结解开。 */
+  if (lootPending) return;
   G.paused = on;
   el['ov-pause'].classList.toggle('on', on);
   cv.style.pointerEvents = on ? 'none' : 'auto';
@@ -8741,6 +9299,21 @@ function endBattle(win) {
     xiuGain += (G.bossKilled || 0) * 200;
   }
 
+  /* —— 残缺剑魄（V2.0）：失败也有产出 ——
+     ★ 只在**主线关卡**结算时发一次。副本没有"节次"（公式里的 lvIdx 是个陈旧值），
+       所以副本产剑魄是 V3.0 的事，这一版不碰。
+     ★ 位置放在 mode 分支之后、统一写盘之前：它和灵石/修为是同一笔落盘，
+       不存在"发出去了但没存住"的窗口（结算中途刷新也不会重复发，
+       因为 endBattle 有 G.scene/lootPending 双重防重入）。 */
+  let jianpoGet = 0;
+  if (G.mode === 'level') {
+    jianpoGet = jianpoGain(win, G.kills, G.lvIdx);
+    if (jianpoGet > 0) {
+      save.jianpo = (save.jianpo || 0) + jianpoGet;
+      save.stats.jianpoTotal = (save.stats.jianpoTotal || 0) + jianpoGet;
+    }
+  }
+
   const before = save.realmIdx;
   save.coins += coinGain; save.xiuwei += xiuGain;
   save.stats.plays++; save.stats.kills += G.kills; save.stats.coins += coinGain;
@@ -8764,6 +9337,7 @@ function endBattle(win) {
   if (win && G.mode === 'level') rows.push(['剩余气血', Math.round(hpR * 100) + '%']);
   rows.push(['获得灵石', '+' + coinGain]);
   rows.push(['获得修为', '+' + xiuGain]);
+  if (jianpoGet > 0) rows.push(['残缺剑魄', '+' + jianpoGet + (win ? '（通关半额）' : '')]);
 
   let h = '';
   if (G.mode === 'level') {
@@ -8810,6 +9384,11 @@ function endBattle(win) {
     if (G.bottle) tips.push('心魔是限时挑战，留到妖群清空时再打更稳');
     h += '<div class="hint" style="color:#ff9b8a;text-align:center;line-height:1.9">' +
          '修为与灵石按七成结算</div>';
+    /* 失败不是"白打一局" —— 这句话必须出现在结算页上，
+       否则玩家根本不知道"打不过"也有积累（V2.0 引入残缺剑魄的全部意义就在这里）。 */
+    if (jianpoGet > 0)
+      h += '<div class="hint" style="color:#c9a7ff;text-align:center;line-height:1.9">' +
+           '此战虽败，剑魄未散　·　得残缺剑魄 <b>' + jianpoGet + '</b> 枚（天机阁可兑换）</div>';
     if (tips.length) h += '<div class="hint" style="color:#ffd96b;line-height:1.9">再战提示：' + tips[0] + '</div>';
   }
 
@@ -8825,6 +9404,12 @@ function endBattle(win) {
   el['btn-next'].disabled = false;
   el['btn-again'].textContent = (canNext && !gateStory) ? '再 刷 本 关' : (win ? '再 来 一 局' : '再 战 一 局');
   el['btn-tolobby'].textContent = gateStory ? '返 回 关 卡 闯 关' : '返 回 大 厅';
+  /* ★ 审计 A1-1 修复：这段门控提示原先用 insertAdjacentHTML 插进 rs-body，
+     紧接着下面一句 `el['rs-body'].innerHTML = h` 把整个 rs-body **整体替换**掉，
+     刚插进去的提示当场被抹掉 —— 每次触发剧情，玩家都只看到"继续下一关"消失、
+     按钮文案变成"返回关卡闯关"，却看不到**为什么**。
+     修法：不再"先插后覆盖"，而是把它拼进 h 里，一次写入（只写一次 DOM，也就无从被覆盖）。 */
+  let gateHTML = '';
   if (gateStory) {
     /* 提示语要覆盖两种演出，且不能写死：
        · 队列里有「章末大剧情」→ 报本章已通；
@@ -8836,14 +9421,13 @@ function endBattle(win) {
       ? ('✦ 剧情推进 · ' + (CH.n || '') + '<br>本章已通。')
       : ('✦ 路上有奇遇 · 待你查看<br>');
     const more = storyQueue.length > 1 ? ('此行共 ' + storyQueue.length + ' 段经历，') : '';
-    el['rs-body'].insertAdjacentHTML('afterbegin',
-      '<div class="hint" style="color:#ffd96b;text-align:center;line-height:1.9;' +
+    gateHTML = '<div class="hint" style="color:#ffd96b;text-align:center;line-height:1.9;' +
       'padding:9px 10px;border-radius:9px;background:rgba(190,160,92,.12);' +
       'border:1px solid var(--line);margin-bottom:11px">' +
-      head + more + '点下方「返回关卡闯关」继续 →</div>');
+      head + more + '点下方「返回关卡闯关」继续 →</div>';
   }
 
-  el['rs-body'].innerHTML = h;
+  el['rs-body'].innerHTML = gateHTML + h;
   refreshLobby();
   /* ★ 结算前先弹「获得物品」（用户口径 2026-09-24 二次收口）。
      触发口径：**只有打完整节的最后一波（通关）才弹** ——
@@ -8880,6 +9464,9 @@ document.addEventListener('click', function (e) {
   else if (act === 'rollname') rollName();
   else if (act === 'rename')   openNameScreen('rename');
   else if (act === 'level')   startLevel(i);
+  /* 难度档切换：档位 key 走 data-k（不是 data-i）—— i 是和列表下标绑定的，
+     而档位是"值"不是"位置"，将来增删档位时不该影响存档里的旧值。 */
+  else if (act === 'diff')    setDifficulty(node.getAttribute('data-k') || '');
   else if (act === 'chardoc') toggleCharDoc(i);
   else if (act === 'charset') setChar(i);
   else if (act === 'equip')   buyEquip(i);
@@ -8898,11 +9485,23 @@ document.addEventListener('click', function (e) {
   else if (act === 'guideoff') guideOff();
   else if (act === 'weapon')  setWeapon(i);
   else if (act === 'buy')     buyItem(i);
+  else if (act === 'jianpo')  buyJianpo(node.getAttribute('data-k') || '');
   else if (act === 'pick')    pickSkill(i);
   else if (act === 'bossdoc') {
-    /* 大厅 / 关卡里的「查看技能 ›」→ 直接跳到魔将图鉴并滚到该魔将 */
+    /* 大厅 / 关卡里的「查看技能 ›」→ 直接跳到魔将图鉴并滚到该魔将。
+       ★ 审计 A1-2 修复：这条入口曾经**绕过锁定校验** ——
+       NAV 里的「魔将图鉴」入口走 clickNav → featureOpen('bossdex')，
+       而关卡行里的「魔将 · 查看技能 ›」是另一条独立通路（data-act="bossdoc"，
+       且在**锁定行上也照渲染**），于是任意档、甚至全新档都能点进 sc-boss，
+       「通关第一章才解锁」形同虚设。
+       教训：入口可以有很多条，但**锁只能查一张表** ——
+       新入口必须复用同一个判据，否则锁就只锁住了其中一条路。 */
+    if (!featureOpen('bossdex')) { domToast(lockHint('bossdex')); SFX.no(); return; }
+    markSeen('bossdex');                 // 玩家确实看到图鉴了 → 引导条的 fresh 步可以前进
     renderBossDex();
     showScreen('sc-boss');
+    saveGame();
+    renderGuide();
     const card = el['bd-boss-list'].children[i];
     if (card && card.scrollIntoView)
       setTimeout(() => card.scrollIntoView({ block:'center', behavior:'smooth' }), 30);
