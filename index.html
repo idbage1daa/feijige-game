@@ -1159,6 +1159,21 @@ const VIEW_K = 1.08;                 // 视野系数（>1 = 看得更远、更�
 const WORLD = 2400;                  // 竞技场边长
 const dpr = Math.min(window.devicePixelRatio || 1, 2);
 const SAVE_KEY = 'dafeiji_v1';
+/* ★★ 存档纪元（SAVE_EPOCH）—— 「全量重置」的唯一开关
+   需求原文（2026-09-25）：「打开更多的人都给它重置一下进度，第一关开始」。
+   存档存在**玩家自己的浏览器**里（localStorage 的 SAVE_KEY），改不到别人的设备上，
+   所以「让所有已经打开过的人下次打开时从第一关开始」只有一条干净的路：
+   **给存档加一个纪元号；读档时纪元不符 → 整档作废、按新档重来。**
+   ⇒ 改大这个数字 = 所有老存档在下一次打开时回到第一关（**一次性**），之后照常存档。
+
+   ★ 为什么不直接换 `SAVE_KEY`：那样会在 localStorage 里留一个永不复用的孤儿键，
+     而且「这里做过一次全量重置」这件事在代码里**看不出来** ——
+     以后没人知道 SAVE_KEY 为什么从 v1 变成了 v2。纪元号是自解释的。
+   ★ 与 SAVE_VER 的分工（**方向相反，别混**）：
+     `SAVE_VER`   = 格式变了 → 要把老档**迁过来**（向后兼容，尽力保住玩家的东西）；
+     `SAVE_EPOCH` = 本轮要**清掉**老档（主动重置，故意的）。
+   ★ 与设置里「清除存档」按钮的分工：那个按钮只清**这台设备**；纪元管**所有人**。 */
+const SAVE_EPOCH = 1;
 
 /* ---------------- 境界（局外成长，靠累计修为突破） ----------------
    用户口径（2026-09-24）：「把等级去掉，换成这些一个档次一个档次的修炼等级 ——
@@ -3756,6 +3771,10 @@ const DEFAULT_SAVE = {
      迁移就会被反复执行（见 02_data.js 的 SAVE_VER 注释）。
      （字段名用 ver，不是下面那个从没被读过的 v:1，别混。） */
   ver: SAVE_VER,
+  /* ★ 存档纪元（见 02_data.js 的 SAVE_EPOCH 注释）：**改大它就等于全量重置一次**。
+     必须真的写进存档里 —— 老档没有这个字段，读档时 `undefined !== SAVE_EPOCH` 正是
+     「这是上一纪元的档 → 作废」的判据。缺了它，纪元门形同虚设。 */
+  epoch: SAVE_EPOCH,
   v:1, coins:0, xiuwei:0, realmIdx:0,
   name:'',
   char:{ cur:'main', owned:['main'] },        // 角色系统：当前出战 + 已结缘
@@ -3806,6 +3825,19 @@ function loadSave() {
   if (!raw) { save = JSON.parse(JSON.stringify(DEFAULT_SAVE)); return; }
   let parsed = null;
   try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+  /* ★★ 纪元闸门 —— 「所有已打开过的人从第一关重新开始」的落地点。
+     判据是 `parsed.epoch !== SAVE_EPOCH`：老档没有 epoch（undefined）→ 不等 → 作废；
+     以后把 SAVE_EPOCH 改大，同纪元的档也会被判掉。
+     ★★ 必须**走和「这台设备从来没打开过」同一条路（直接 return）**，
+     不能只把 parsed 置 null 后继续往下跑 —— 下面那句 `if (!parsed || ...)` 会调用
+     `migrateStoryBeats()`，把第 1 节的解锁演出**预先标成"已播"**，
+     症状就是「打完第 1 节什么都没发生」（test_unlock.py 的 ⑥b 专门钉着这个坑）。
+     重置 = 真新档，就必须拿到真新档的待遇。 */
+  if (parsed && parsed.epoch !== SAVE_EPOCH) {
+    save = JSON.parse(JSON.stringify(DEFAULT_SAVE));
+    saveGame();   /* 立刻落盘成新纪元的档：不然每次打开都要再走一遍这条重置路 */
+    return;
+  }
   save = parsed ? deepMerge(DEFAULT_SAVE, parsed)
                 : JSON.parse(JSON.stringify(DEFAULT_SAVE));
   /* ★ 版本迁移的判定必须用 merge **之前**的原始数据（parsed），不能用 save：
@@ -3849,6 +3881,8 @@ function saveGame() {
   /* 落盘时把版本号盖上 —— 这份档以后读回来就不会再被判成老档。
      放在 saveGame 而不是只放 DEFAULT_SAVE：任何来路的 save 对象写出去都是当前版本。 */
   save.ver = SAVE_VER;
+  /* ★ 纪元号同理，而且更关键：只要写出去就归入当前纪元，不会再被纪元闸门清掉。*/
+  save.epoch = SAVE_EPOCH;
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
 }
 function wipeSave() {
